@@ -1,0 +1,28 @@
+{
+  "name": "أغرو-سيريا | Agro-Syria",
+  "short_name": "أغرو-سيريا",
+  "description": "منصة الزراعة الذكية للمزارع السوري — بيانات السوق، الطقس، والمساعد الزراعي الذكي",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#020804",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["agriculture", "food", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "السوق الزراعي",
+      "short_name": "السوق",
+      "description": "أسعار المحاصيل مباشرة",
+      "url": "/dashboard/market",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
