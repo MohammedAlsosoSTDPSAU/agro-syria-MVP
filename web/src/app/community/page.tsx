@@ -483,10 +483,35 @@ function KnowledgeCardItem({ card }: { card: KnowledgeCard }) {
 }
 
 // ── Ask Case Modal ─────────────────────────────────────────────────────────
-function AskCaseModal({ onClose }: { onClose: () => void }) {
+function AskCaseModal({ onClose, onPublish }: { onClose: () => void; onPublish: (c: FieldCase) => void }) {
   const [text, setText] = useState("");
   const [cat,  setCat]  = useState<CaseCategory>("محاصيل");
   const [gov,  setGov]  = useState("حلب");
+
+  function handlePublish() {
+    const q = text.trim();
+    if (!q) return;
+    onPublish({
+      id: `c-user-${Date.now()}`,
+      author: "أنت",
+      trustScore: 0,
+      isVerified: false,
+      governorate: gov,
+      location: gov,
+      cropType: "عام",
+      time: "الآن",
+      question: q,
+      category: cat,
+      isUrgent: false,
+      aiConfidence: 82,
+      agentName: "وكيل الميدان",
+      agentAnalysis: "تم استلام قضيتك — وكلاؤنا الأذكياء يحللون التفاصيل الآن وستظهر التوصيات الدقيقة خلال لحظات.",
+      agentSuggestions: ["تابع ردود الخبراء والمزارعين على قضيتك", "أرفق صورة واضحة للأعراض للحصول على تحليل أدق"],
+      aiSummary: "قضية جديدة قيد التحليل من المجتمع والوكلاء الأذكياء.",
+      replies: [],
+    });
+    onClose();
+  }
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -541,7 +566,7 @@ function AskCaseModal({ onClose }: { onClose: () => void }) {
             </div>
             <p className="text-[9px] text-muted-foreground/60">أرفق وصفًا دقيقًا للأعراض والمنطقة للحصول على أدق تحليل.</p>
           </div>
-          <button onClick={onClose} disabled={!text.trim()}
+          <button onClick={handlePublish} disabled={!text.trim()}
             className="w-full py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all disabled:opacity-40">
             نشر القضية الميدانية
           </button>
@@ -1023,7 +1048,19 @@ function CommunityContent() {
       </div>
 
       <AnimatePresence>
-        {showAsk && <AskCaseModal onClose={() => setShowAsk(false)} />}
+        {showAsk && (
+          <AskCaseModal
+            onClose={() => setShowAsk(false)}
+            onPublish={(c) => {
+              setCases(prev => [c, ...prev]);
+              // Reset view + filters so the freshly published case is visible at the top.
+              setView("cases");
+              setCatFilter("الكل");
+              setGovFilter(null);
+              setSearch("");
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
   );

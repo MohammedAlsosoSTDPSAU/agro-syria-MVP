@@ -10,6 +10,7 @@ import {
   Package, Users, Factory, Handshake, Navigation,
   BadgeCheck, TriangleAlert, Wheat, Leaf, X,
   FileText, CloudLightning, Bug,
+  Plus, Phone, Coins, ShoppingCart,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { SyriaMap } from "@/components/workspace/SyriaMap";
@@ -495,8 +496,170 @@ function Insight({ text, title = "شرح القسم", services }: { text: string
   return <InfoTip title={title} definition={text} services={services} />;
 }
 
+// ── Marketplace listings (demo) ─────────────────────────────────────────────
+type ListingKind = "sell" | "buy";
+interface MarketListing {
+  id: string;
+  product: string;
+  quantityTons: number;
+  pricePerUnit: number;
+  kind: ListingKind;
+  phone: string;
+  createdAt: number;
+}
+
+const LISTING_CROPS = ["قمح", "شعير", "قطن", "ذرة", "طماطم", "بطاطا", "عدس", "زيتون", "زيت زيتون", "عنب", "فستق حلبي", "حمضيات"];
+
+const SEED_LISTINGS: MarketListing[] = [
+  { id: "l-seed-1", product: "قمح",        quantityTons: 40, pricePerUnit: 430, kind: "sell", phone: "0944 123 456", createdAt: Date.now() - 3_600_000 },
+  { id: "l-seed-2", product: "زيت زيتون",  quantityTons: 6,  pricePerUnit: 2850, kind: "buy",  phone: "0933 987 654", createdAt: Date.now() - 9_000_000 },
+];
+
+function AddListingModal({ onClose, onPublish }: { onClose: () => void; onPublish: (l: MarketListing) => void }) {
+  const [product,  setProduct]  = useState(LISTING_CROPS[0]);
+  const [quantity, setQuantity] = useState("");
+  const [price,    setPrice]    = useState("");
+  const [kind,     setKind]     = useState<ListingKind>("sell");
+  const [phone,    setPhone]    = useState("");
+  const [error,    setError]    = useState("");
+
+  const fieldCls = "w-full bg-white/[0.04] border border-white/[0.1] focus:border-emerald-500/50 rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none transition-colors";
+
+  function submit() {
+    const q = parseFloat(quantity);
+    const p = parseFloat(price);
+    if (!q || q <= 0)  { setError("الرجاء إدخال كمية صحيحة بالطن"); return; }
+    if (!p || p <= 0)  { setError("الرجاء إدخال سعر مستهدف صحيح"); return; }
+    if (phone.replace(/\D/g, "").length < 9) { setError("الرجاء إدخال رقم تواصل صحيح"); return; }
+    onPublish({
+      id: `l-user-${Date.now()}`,
+      product, quantityTons: q, pricePerUnit: p, kind,
+      phone: phone.trim(), createdAt: Date.now(),
+    });
+    onClose();
+  }
+
+  return (
+    <motion.div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" dir="rtl"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
+      <motion.div className="relative z-10 w-full sm:max-w-md glass-card rounded-t-3xl sm:rounded-3xl border border-emerald-500/20 emerald-glow-sm overflow-hidden max-h-[92dvh] overflow-y-auto"
+        initial={{ scale: 0.96, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 30 }}
+        transition={{ duration: 0.28, ease: EASE }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-emerald-500/10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+              <Handshake className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-foreground leading-none">إضافة عرض في السوق</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">انشر عرض بيع أو طلب شراء ليصل لآلاف المزارعين والتجار</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="إغلاق" className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Listing type toggle */}
+          <div>
+            <span className="block text-[11px] font-bold text-muted-foreground mb-1.5">نوع العرض</span>
+            <div className="grid grid-cols-2 gap-2">
+              {([["sell", "عرض بيع", Coins], ["buy", "طلب شراء", ShoppingCart]] as [ListingKind, string, React.ElementType][]).map(([k, lbl, Icon]) => (
+                <button key={k} type="button" onClick={() => setKind(k)}
+                  className={cn("flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                    kind === k
+                      ? (k === "sell" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "bg-sky-500/20 border-sky-500/40 text-sky-300")
+                      : "border-white/[0.08] text-muted-foreground hover:text-foreground")}>
+                  <Icon className="w-3.5 h-3.5" />{lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Product */}
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground mb-1.5"><Wheat className="w-3.5 h-3.5 text-emerald-400/70" /> المحصول</span>
+            <select value={product} onChange={e => setProduct(e.target.value)} className={cn(fieldCls, "appearance-none")}>
+              {LISTING_CROPS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Quantity */}
+            <label className="block">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground mb-1.5"><Package className="w-3.5 h-3.5 text-emerald-400/70" /> الكمية (طن)</span>
+              <input type="number" inputMode="decimal" min="0" step="0.5" value={quantity} dir="ltr"
+                onChange={e => { setQuantity(e.target.value); setError(""); }} placeholder="40" className={cn(fieldCls, "font-numeric")} />
+            </label>
+            {/* Price */}
+            <label className="block">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground mb-1.5"><Coins className="w-3.5 h-3.5 text-emerald-400/70" /> السعر (ل.س/كغ)</span>
+              <input type="number" inputMode="decimal" min="0" step="1" value={price} dir="ltr"
+                onChange={e => { setPrice(e.target.value); setError(""); }} placeholder="430" className={cn(fieldCls, "font-numeric")} />
+            </label>
+          </div>
+
+          {/* Phone */}
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground mb-1.5"><Phone className="w-3.5 h-3.5 text-emerald-400/70" /> رقم التواصل</span>
+            <input type="tel" inputMode="tel" value={phone} dir="ltr"
+              onChange={e => { setPhone(e.target.value.replace(/[^\d\s\-()]/g, "")); setError(""); }} placeholder="09XX XXX XXX" className={cn(fieldCls, "font-numeric")} />
+          </label>
+
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
+
+          <button onClick={submit}
+            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400 text-sm font-bold transition-colors emerald-glow-sm">
+            <Plus className="w-4 h-4" /> نشر العرض في السوق
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ListingCard({ listing }: { listing: MarketListing }) {
+  const isSell = listing.kind === "sell";
+  const tone = isSell
+    ? { text: "text-emerald-400", bg: "bg-emerald-500/12", border: "border-emerald-500/25", label: "عرض بيع", Icon: Coins }
+    : { text: "text-sky-400",     bg: "bg-sky-500/12",     border: "border-sky-500/25",     label: "طلب شراء", Icon: ShoppingCart };
+  const TIcon = tone.Icon;
+  return (
+    <motion.div variants={cardV} className="glass-card rounded-2xl p-4 border border-white/[0.06] flex flex-col gap-3" dir="rtl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><Wheat className="w-4 h-4 text-emerald-400" /></div>
+          <span className="text-sm font-bold text-foreground">{listing.product}</span>
+        </div>
+        <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 border", tone.bg, tone.border, tone.text)}>
+          <TIcon className="w-2.5 h-2.5" />{tone.label}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] py-2">
+          <p className="text-[9px] text-muted-foreground/60">الكمية</p>
+          <p className="text-sm font-bold text-foreground font-numeric">{listing.quantityTons} <span className="text-[10px] font-normal text-muted-foreground">طن</span></p>
+        </div>
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] py-2">
+          <p className="text-[9px] text-muted-foreground/60">السعر المستهدف</p>
+          <p className="text-sm font-bold text-foreground font-numeric">{listing.pricePerUnit} <span className="text-[10px] font-normal text-muted-foreground">ل.س/كغ</span></p>
+        </div>
+      </div>
+      <a href={`tel:${listing.phone.replace(/\s/g, "")}`}
+        className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.07] text-xs font-semibold text-emerald-300 transition-colors">
+        <Phone className="w-3 h-3" /> <span dir="ltr">{listing.phone}</span>
+      </a>
+    </motion.div>
+  );
+}
+
 // ── Main page content ─────────────────────────────────────────────────────────
 function MarketContent() {
+  const [showAddListing, setShowAddListing] = useState(false);
+  const [listings, setListings] = useState<MarketListing[]>(SEED_LISTINGS);
   const [selectedRegion, setSelectedRegion] = useState<string|null>(null);
   const [overlay, setOverlay]               = useState<MapOverlay>("production");
   const { data, isLoading, mutate }         = useMarket(selectedRegion);
@@ -526,11 +689,43 @@ function MarketContent() {
             />
           </div>
           <div className="flex items-center gap-2">
+            <motion.button onClick={()=>setShowAddListing(true)}
+              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400 text-sm font-bold transition-colors emerald-glow-sm">
+              <Plus className="w-4 h-4"/> إضافة عرض في السوق
+            </motion.button>
             {selectedRegion&&<button onClick={()=>setSelectedRegion(null)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/10 text-[11px] text-muted-foreground hover:text-foreground transition-colors"><X className="w-3 h-3"/>مسح</button>}
             {lastUpd&&<span className="text-[10px] text-muted-foreground/50"><RelativeTime isoDate={lastUpd}/></span>}
             <button onClick={()=>mutate()} className="w-8 h-8 rounded-xl glass-card flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading?"animate-spin":""}`}/>
             </button>
+          </div>
+        </motion.div>
+
+        {/* ── Marketplace listings (live offers & requests) ───────────────── */}
+        <motion.div variants={staggerV} initial="hidden" animate="visible" className="mb-5" dir="rtl">
+          <div className="glass-card rounded-2xl p-4 border border-white/[0.05]">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center"><Handshake className="w-3.5 h-3.5 text-emerald-400"/></div>
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold text-foreground">عروض السوق المباشرة</span>
+                  <Insight title="عروض السوق المباشرة" text="منصة العرض والطلب — انشر عرض بيع أو طلب شراء وتواصل مباشرةً مع الطرف الآخر." services={["إضافة عرض بيع أو طلب شراء", "تصفح العروض النشطة", "التواصل المباشر عبر الهاتف"]}/>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{listings.length} عرض نشط · بيع وشراء</p>
+              </div>
+              <button onClick={()=>setShowAddListing(true)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/12 border border-emerald-500/25 text-emerald-300 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors"><Plus className="w-3 h-3"/>عرض جديد</button>
+            </div>
+            {listings.length === 0 ? (
+              <div className="rounded-2xl bg-white/[0.02] border border-dashed border-white/[0.09] p-6 flex flex-col items-center gap-2">
+                <Handshake className="w-8 h-8 text-muted-foreground/25"/>
+                <p className="text-xs text-muted-foreground/50">لا توجد عروض بعد — كن أول من ينشر</p>
+              </div>
+            ) : (
+              <motion.div variants={staggerV} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {listings.map(l => <ListingCard key={l.id} listing={l}/>)}
+              </motion.div>
+            )}
           </div>
         </motion.div>
 
@@ -727,6 +922,16 @@ function MarketContent() {
           البيانات تقديرية للأغراض التوضيحية · أغرو-سيريا © 2026
         </p>
       </div>
+
+      <AnimatePresence>
+        {showAddListing && (
+          <AddListingModal
+            onClose={() => setShowAddListing(false)}
+            onPublish={(l) => setListings(prev => [l, ...prev])}
+          />
+        )}
+      </AnimatePresence>
+
       <MarketCopilot/>
     </div>
   );
