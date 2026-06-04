@@ -1470,9 +1470,13 @@ function CropDrawerV2({ crop, onClose, onYieldCalc }: {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* ── Scrollable body (compact title stays fixed; everything below scrolls) ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ touchAction: "pan-y" }}>
 
           {/* Gauge + Regional Strength */}
-          <div className="flex items-start gap-3 px-5 pb-3">
+          <div className="flex items-start gap-3 px-5 pt-3 pb-3">
             <div className="flex-shrink-0">
               <RadialGauge score={ext.suitabilityScore} color={crop.color} />
             </div>
@@ -1529,10 +1533,7 @@ function CropDrawerV2({ crop, onClose, onYieldCalc }: {
             ))}
           </div>
           <div className="h-3" />
-        </div>
 
-        {/* ── Scrollable body ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ touchAction: "pan-y" }}>
           <AnimatePresence mode="wait">
 
             {tab === "guide" && (
