@@ -1,12 +1,26 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Globe, Bell, Shield, ChevronDown,
   Check, LogOut, Trash2, Save,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
+import { PageGuide } from "@/components/ui/PageGuide";
+
+type ThemePref = "dark" | "light" | "system";
+
+// Apply a theme preference through the shared Sun-Cycle ThemeController
+// (persists to "agro-theme"; "system" maps to the controller's "auto").
+function applyThemePref(t: ThemePref) {
+  if (typeof window === "undefined") return;
+  const mode = t === "system" ? "auto" : t;
+  try { localStorage.setItem("agro-theme", mode); } catch { /* ignore */ }
+  window.dispatchEvent(new Event("agro-theme-change"));
+}
+
+const SETTINGS_KEY = "agro_settings";
 
 type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
@@ -172,10 +186,11 @@ function SettingsContent() {
 
   const [language, setLanguage]       = useState<"ar" | "en">("ar");
   const [units, setUnits]             = useState<"metric" | "imperial">("metric");
-  const [theme, setTheme]             = useState<"dark" | "light" | "system">("dark");
+  const [theme, setTheme]             = useState<ThemePref>("dark");
   const [tempUnit, setTempUnit]       = useState<"celsius" | "fahrenheit">("celsius");
 
   const [notifs, setNotifs] = useState({
+    sms:       false,
     weather:   true,
     market:    true,
     ai:        true,
@@ -185,17 +200,49 @@ function SettingsContent() {
 
   const [saved, setSaved] = useState(false);
 
+  // Load any previously-saved settings + the live theme on mount.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s.name) setName(s.name);
+        if (s.province) setProvince(s.province);
+        if (s.primaryCrop) setPrimaryCrop(s.primaryCrop);
+        if (s.language) setLanguage(s.language);
+        if (s.units) setUnits(s.units);
+        if (s.tempUnit) setTempUnit(s.tempUnit);
+        if (s.notifs) setNotifs(n => ({ ...n, ...s.notifs }));
+      }
+      const tm = localStorage.getItem("agro-theme");
+      if (tm === "light" || tm === "dark") setTheme(tm);
+      else if (tm === "auto") setTheme("system");
+    } catch { /* ignore */ }
+  }, []);
+
+  // Live theme switch — applies immediately via the ThemeController.
+  const changeTheme = useCallback((t: ThemePref) => {
+    setTheme(t);
+    applyThemePref(t);
+  }, []);
+
   const handleSave = useCallback(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        name, province, primaryCrop, language, units, tempUnit, notifs,
+      }));
+    } catch { /* ignore */ }
+    applyThemePref(theme);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-  }, []);
+  }, [name, province, primaryCrop, language, units, tempUnit, notifs, theme]);
 
   const toggleNotif = (key: keyof typeof notifs) =>
     setNotifs(n => ({ ...n, [key]: !n[key] }));
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden" dir="rtl">
-      <div className="p-6 max-w-3xl mx-auto w-full">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto w-full">
 
         {/* Header */}
         <motion.div
@@ -205,6 +252,10 @@ function SettingsContent() {
           <div>
             <h2 className="text-2xl font-bold text-foreground font-arabic">الإعدادات</h2>
             <p className="text-sm text-muted-foreground mt-0.5 font-arabic">إدارة ملفك الشخصي وتفضيلاتك وإشعاراتك</p>
+            <PageGuide
+              summary="خصّص تجربتك — ملفك، إشعاراتك، ومظهر التطبيق (يُطبَّق فوراً)."
+              services={["الملف الشخصي", "المحافظة والمحصول", "تنبيهات SMS والطقس", "اللغة والوحدات", "مظهر داكن/فاتح/تلقائي"]}
+            />
           </div>
           <button
             onClick={handleSave}
@@ -286,10 +337,10 @@ function SettingsContent() {
 
             <div className="border-t border-white/[0.04]" />
 
-            <FieldRow label="مظهر التطبيق">
+            <FieldRow label="مظهر التطبيق" description="يُطبَّق فوراً — تلقائي يتبع دورة الشمس (نهار/ليل)">
               <RadioGroup
                 value={theme}
-                onChange={setTheme}
+                onChange={changeTheme}
                 options={[
                   { value: "dark",   label: "داكن" },
                   { value: "light",  label: "فاتح" },
@@ -303,8 +354,13 @@ function SettingsContent() {
           <Section icon={Bell} title="الإشعارات" subtitle="تحكم في التنبيهات التي تصلك">
             {[
               {
+                key: "sms" as const,
+                label: "تنبيهات الرسائل النصية (SMS)",
+                desc: "استقبل أهم التحذيرات عبر رسالة نصية حتى دون إنترنت",
+              },
+              {
                 key: "weather" as const,
-                label: "تنبيهات الطقس",
+                label: "تحذيرات الطقس",
                 desc: "موجات الحر والصقيع والأمطار التي تؤثر على محاصيلك",
               },
               {

@@ -15,3 +15,6 @@ Tips:
   with object-cover object-top, so wider/taller shots crop gracefully from the top.
 - .png is assumed; if you prefer .jpg, rename the files OR update the
   `image:` paths in src/app/marketing-slides/page.tsx.
+
+  /marketing/community.png   → مجتمع المزارعين (Community — interactive farmer network)
+  /marketing/news.png        → الأخبار والقرارات (News & decisions — coming soon)

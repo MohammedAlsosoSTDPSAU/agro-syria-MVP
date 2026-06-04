@@ -410,11 +410,12 @@ html, body { overflow-x: hidden; max-width: 100%; }
 @media print {
   @page { size: A4 landscape; margin: 0; }
 
-  /* Preserve every colour (backgrounds, glows, gradients, text) */
+  /* Force the browser to print every colour exactly (flat, no auto-lighten) */
   .marketing-deck,
   .marketing-deck * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
   /* Release the on-screen viewport lock so all pages can flow */
@@ -432,6 +433,36 @@ html, body { overflow-x: hidden; max-width: 100%; }
   /* The print-only container holds every slide */
   .marketing-deck .deck-print { display: block !important; }
 
+  /* ── Flat, professional surfaces: kill effects that print grainy ──
+     gradients / meshes, blurs, neon glows, drop-shadows, animations.    */
+  .marketing-deck *,
+  .marketing-deck *::before,
+  .marketing-deck *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .marketing-deck .bg-forest-mesh { background-image: none !important; }
+
+  /* Gradient text → solid emerald (gradient text fills render grainy in PDF) */
+  .marketing-deck .text-emerald-gradient {
+    background: none !important;
+    -webkit-text-fill-color: #10b981 !important;
+    color: #10b981 !important;
+  }
+
+  /* Flatten translucent device-frame + card surfaces into crisp solids */
+  .marketing-deck .bg-slate-950\/40,
+  .marketing-deck .bg-slate-950\/30 { background-color: #0d1512 !important; }
+  .marketing-deck .bg-slate-900\/50 { background-color: #131c18 !important; }
+  .marketing-deck .bg-slate-950\/60 { background-color: #0a0f0d !important; }
+  .marketing-deck .glass-card { background-color: #0f1714 !important; border-color: rgba(16,185,129,0.20) !important; }
+  .light .marketing-deck .glass-card { background-color: #ffffff !important; border-color: rgba(16,185,129,0.22) !important; }
+
   .deck-print-page {
     width: 100%;
     min-height: 100vh;
@@ -443,7 +474,13 @@ html, body { overflow-x: hidden; max-width: 100%; }
     break-inside: avoid;
     break-after: always;
     page-break-after: always;
+    background-image: none !important;
+    /* Dark-mode print: rich flat charcoal-forest (default) */
+    background-color: #0A0F0D !important;
   }
+  /* Light-mode print: elegant flat warm cream */
+  .light .deck-print-page { background-color: #F5F7F5 !important; }
+
   .deck-print-page:last-child {
     break-after: auto;
     page-break-after: auto;

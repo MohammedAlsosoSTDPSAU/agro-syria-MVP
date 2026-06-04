@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import {
   Bot, Workflow, Server, ShieldCheck, FlaskConical,
   Boxes, Cpu, Sparkles, HeartHandshake, ArrowLeft,
+  LayoutGrid, LayoutDashboard, Map as MapIcon, CloudSun, Sprout,
+  TrendingUp, Users, Newspaper, Settings, ChevronLeft,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,18 @@ const STACK = [
   { icon: ShieldCheck, name: "Pydantic",        descAr: "عقود بيانات صارمة بين الوكلاء" },
   { icon: FlaskConical,name: "Automated Tests", descAr: "اختبارات pytest تحمي من الانحدار" },
   { icon: Cpu,         name: "AI Agents",       descAr: "وكلاء متخصّصون يعملون بالتوازي" },
+];
+
+const WORKSPACE_PAGES = [
+  { icon: LayoutDashboard, name: "لوحة التحكم",   href: "/dashboard",         desc: "مركز القيادة: خريطة المخاطر، إحاطة ذكية، ومؤشر صحة المزرعة." },
+  { icon: MapIcon,         name: "حقولي",          href: "/fields",            desc: "سجّل حقولك بإحداثيات دقيقة وتابع صحتها على الخريطة." },
+  { icon: CloudSun,        name: "الطقس",          href: "/weather",           desc: "طقس لحظي لكل محافظة، توقّعات ٧ أيام، ومحرّك الري ET₀." },
+  { icon: Bot,             name: "المساعد الذكي",  href: "/copilot",           desc: "محادثة متعددة الوكلاء وتحليل صور الأمراض بلهجتك." },
+  { icon: Sprout,          name: "المحاصيل",       href: "/crops",             desc: "موسوعة المحاصيل السورية وحاسبة الإنتاجية الموسمية." },
+  { icon: TrendingUp,      name: "لوحة السوق",     href: "/dashboard/market",  desc: "أسعار واتجاهات السوق وتوصية بأفضل وقت للبيع." },
+  { icon: Users,           name: "المجتمع",        href: "/community",         desc: "تبادل الخبرات والتعاون مع آلاف المزارعين السوريين." },
+  { icon: Newspaper,       name: "الأخبار",        href: "/news",              desc: "قرارات رسمية، تنبيهات عاجلة، وأسعار المدخلات (قريباً)." },
+  { icon: Settings,        name: "الإعدادات",      href: "/dashboard/settings", desc: "ملفك الشخصي، الإشعارات، والمظهر والتفضيلات." },
 ];
 
 const AGENTS = [
@@ -95,8 +109,39 @@ export default function AboutPage() {
           </p>
         </motion.section>
 
-        {/* ── The multi-agent team ── */}
+        {/* ── Workspace services matrix — every page & what it does ── */}
         <motion.section custom={2} variants={fadeUp} initial="hidden" animate="visible">
+          <div className="flex items-center gap-2 mb-4 px-1">
+            <LayoutGrid className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-black text-foreground">خدمات المنصّة — كل صفحة وما تقدّمه لك</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {WORKSPACE_PAGES.map((p, i) => {
+              const Icon = p.icon;
+              return (
+                <motion.button
+                  key={p.name} onClick={() => router.push(p.href)}
+                  custom={i} variants={fadeUp} initial="hidden" animate="visible"
+                  className="glass-card rounded-2xl p-4 text-start flex items-start gap-3 border border-transparent hover:border-emerald-500/30 hover:emerald-glow-sm transition-all group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/18 transition-colors">
+                    <Icon className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-bold text-foreground">{p.name}</p>
+                      <ChevronLeft className="w-3.5 h-3.5 text-emerald-400/0 group-hover:text-emerald-400/70 transition-colors" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1 font-arabic leading-relaxed">{p.desc}</p>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.section>
+
+        {/* ── The multi-agent team ── */}
+        <motion.section custom={3} variants={fadeUp} initial="hidden" animate="visible">
           <div className="flex items-center gap-2 mb-4 px-1">
             <Bot className="w-5 h-5 text-emerald-400" />
             <h2 className="text-lg font-black text-foreground">فريق الوكلاء الذكي</h2>

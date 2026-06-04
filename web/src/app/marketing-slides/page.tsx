@@ -15,7 +15,7 @@ import {
   ChevronLeft, ChevronRight, Camera, Sparkles, ArrowLeft,
   LayoutDashboard, CloudSun, Bot, Map as MapIcon, Sprout, TrendingUp,
   ShieldCheck, Rocket, AlertTriangle, Globe, Zap, Heart, ExternalLink,
-  Download,
+  Download, Users, Newspaper,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeController";
 import { cn } from "@/lib/utils";
@@ -194,6 +194,28 @@ const FEATURES: Feature[] = [
       "أسعار المحاصيل واتجاهاتها الأسبوعية لحظةً بلحظة",
       "مقارنة إنتاجية المحافظات السورية",
       "توصية ذكية بأفضل نافذة للبيع تحمي دخلك",
+    ],
+  },
+  {
+    id: "community", icon: Users, kicker: "مجتمع مزارعي أغرو-سوريا", title: "نبض الأرض.. مجتمع يجمعنا",
+    tagline: "تبادل الخبرات، واجه التحديات، وشارك نجاحك مع آلاف المزارعين السوريين في منصة تفاعلية واحدة.",
+    url: `${PROD_URL}/community`, image: "/marketing/community.png",
+    caption: "📸 [مكان لقطة الشاشة: مجتمع المزارعين التفاعلي]",
+    points: [
+      "تواصل مباشر: طرح الأسئلة والحصول على إجابات من خبراء ومزارعين محليين",
+      "مشاركة التجارب: تبادل النصائح حول مكافحة الآفات وتحسين جودة المواسم السورية",
+      "تعاون وطني: بناء علاقات تجارية وتكامل زراعي بين جميع المحافظات",
+    ],
+  },
+  {
+    id: "news", icon: Newspaper, kicker: "الأخبار والقرارات · قريباً", title: "أخبار ومواسم الزراعة.. لحظة بلحظة (قريباً)",
+    tagline: "ابق على اطلاع دائم بآخر القرارات الحكومية، أسعار السماد والوقود، والتحذيرات المناخية العاجلة.",
+    url: `${PROD_URL}/news`, image: "/marketing/news.png",
+    caption: "📸 [مكان لقطة الشاشة: لوحة الأخبار والقرارات الزراعية]",
+    points: [
+      "قرارات رسمية: رصد مباشر لقرارات وزارة الزراعة والجهات المعنية فور صدورها",
+      "تنبيهات عاجلة: إشعارات استباقية بالصقيع، الرياح الشديدة، أو مواسم انتشار الأوبئة",
+      "أسعار المدخلات: تحديثات يومية وموثوقة لأسعار السوق المحلية لضمان تخطيط اقتصادي سليم",
     ],
   },
 ];

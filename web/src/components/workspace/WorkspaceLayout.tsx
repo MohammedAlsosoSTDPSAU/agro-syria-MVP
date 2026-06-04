@@ -19,10 +19,12 @@ export function WorkspaceLayout({
   onNavigate = () => {},
 }: WorkspaceLayoutProps) {
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-forest-mesh">
+    <div className="flex min-h-[100dvh] md:h-screen w-full overflow-x-hidden md:overflow-hidden bg-forest-mesh">
       {/*
         RTL layout — Sidebar on the RIGHT (Arabic nav position).
-        Desktop: persistent Sidebar. Mobile: bottom nav + drawer (MobileNav).
+        Desktop: fixed app-shell with internal scroll. Mobile: natural page
+        scroll (min-h-[100dvh], no overflow lock) so opening menus/modals never
+        traps the view or kills scroll/back navigation. MobileNav = bottom bar.
       */}
       <Sidebar activeId={activeView} onNavigate={onNavigate} />
 
@@ -38,8 +40,9 @@ export function WorkspaceLayout({
         {/* Hairline accent */}
         <div className="h-[1px] w-full bg-gradient-to-l from-transparent via-emerald-500/25 to-transparent flex-shrink-0" />
 
-        {/* Scrollable content — extra bottom space on mobile to clear the bottom nav */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-0">
+        {/* Content — page-scroll on mobile, internal scroll on desktop.
+            Extra bottom space on mobile clears the fixed bottom nav. */}
+        <div className="flex-1 min-h-0 overflow-x-hidden md:overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-0">
           {children}
         </div>
       </motion.main>

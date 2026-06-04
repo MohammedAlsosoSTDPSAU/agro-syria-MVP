@@ -2082,7 +2082,7 @@ function CropsContent() {
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden" dir="rtl">
-      <div className="p-6 max-w-7xl mx-auto w-full">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}

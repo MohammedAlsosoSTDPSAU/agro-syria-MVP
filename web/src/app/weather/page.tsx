@@ -12,6 +12,7 @@ import {
   CheckCircle2, TrendingDown, TrendingUp,
   Share2, Check, Send, Bot, RefreshCw,
   CircleCheck, CircleMinus, CircleX, BarChart3,
+  LocateFixed, Loader2,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PROVINCES as GEO_PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
@@ -21,6 +22,9 @@ import {
   tempToHeatColor, WIND_DIRECTION_ANGLE,
   type ProvinceWeather, type AmbientState, type DayForecast, type RiskType,
 } from "@/lib/weather";
+import { nearestProvince, isInSyria } from "@/lib/geo";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { cn } from "@/lib/utils";
 
 // Accurate governorate geometry (polygon + centroid), keyed by Arabic name —
@@ -164,10 +168,10 @@ function AmbientBackground({ state }: { state: AmbientState }) {
       <motion.div key={state} className="absolute inset-0"
         style={{ background: getAmbientGradient(state) }}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.4, ease: EASE }} />
-      <motion.div className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full blur-3xl"
+      <motion.div className="absolute -top-32 -right-32 w-[min(600px,80vw)] h-[min(600px,80vw)] rounded-full blur-3xl"
         style={{ background: orb1[state] }}
         animate={{ scale: [1,1.08,1], opacity:[0.7,1,0.7] }} transition={{ duration: 6, repeat: Infinity, ease:"easeInOut" }} />
-      <motion.div className="absolute -bottom-32 -left-24 w-[480px] h-[480px] rounded-full blur-3xl"
+      <motion.div className="absolute -bottom-32 -left-24 w-[min(480px,70vw)] h-[min(480px,70vw)] rounded-full blur-3xl"
         style={{ background: orb2[state] }}
         animate={{ scale:[1,1.06,1], opacity:[0.5,0.8,0.5] }} transition={{ duration: 8, repeat: Infinity, ease:"easeInOut", delay:1.5 }} />
       {state === "dusty" && (
@@ -253,7 +257,7 @@ function HeroPulse({ province, overrideDay, onClearDay }: { province:ProvinceWea
         </motion.div>
         <div>
           <div className="flex items-start gap-1">
-            <span className="text-6xl md:text-7xl font-black font-numeric leading-none text-foreground">{temp}</span>
+            <span className="text-5xl sm:text-6xl md:text-7xl font-black font-numeric leading-none text-foreground">{temp}</span>
             <span className="text-2xl font-bold text-muted-foreground mt-2">°م</span>
           </div>
           <p className="text-base font-semibold text-foreground/80 mt-1 font-arabic">{cond}</p>
@@ -381,6 +385,7 @@ function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProv
         <div className="flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-[11px] text-muted-foreground font-arabic">خريطة المحافظات</span>
+          <InfoTip label="خريطة المحافظات" text="اضغط على أي محافظة لعرض طقسها. بدّل الطبقات (حرارة/رياح/أمطار) لرؤية التوزيع الجغرافي عبر سوريا." />
         </div>
         <div className="flex items-center gap-1 flex-wrap">
           {layers.map(l => (
@@ -1381,7 +1386,7 @@ function generateCopilotReply(q: string, province: ProvinceWeather): string {
 function WeatherCopilot({ province }: { province: ProvinceWeather }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input,    setInput]    = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Seed greeting whenever province changes
   useEffect(() => {
@@ -1391,8 +1396,12 @@ function WeatherCopilot({ province }: { province: ProvinceWeather }) {
     }]);
   }, [province.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the chat box scrolled to its latest message WITHOUT moving the page.
+  // (Previously used scrollIntoView, which jumped the whole window to this
+  //  section on load.)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const send = useCallback((text: string) => {
@@ -1431,7 +1440,7 @@ function WeatherCopilot({ province }: { province: ProvinceWeather }) {
       </div>
 
       {/* Messages */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col gap-2 max-h-48 overflow-y-auto"
+      <div ref={listRef} className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col gap-2 max-h-48 overflow-y-auto"
            style={{ scrollbarWidth:"none" }}>
         {messages.map((msg, i) => (
           <motion.div key={i}
@@ -1453,7 +1462,6 @@ function WeatherCopilot({ province }: { province: ProvinceWeather }) {
             </div>
           </motion.div>
         ))}
-        <div ref={bottomRef} />
       </div>
 
       {/* Quick chips */}
@@ -1492,6 +1500,9 @@ export default function WeatherPage() {
   const [hyperlocalArea,setHyperlocalArea] = useState<string|null>(null);
   const [copied,        setCopied]         = useState(false);
 
+  // Always load the Weather page at the very top (no auto-jump to lower sections).
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+
   useEffect(() => {
     try {
       const settings=localStorage.getItem("agro_settings");
@@ -1507,6 +1518,35 @@ export default function WeatherPage() {
 
   const handleSelect=useCallback((id:string) => {
     const p=PROVINCES.find(x=>x.id===id); if(p) { setProvince(p); setSelectedDayIdx(null); }
+  }, []);
+
+  // ── Auto-geolocation: detect → resolve to governorate → update live ──
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg]   = useState<string | null>(null);
+  const locateMe = useCallback(() => {
+    if (!navigator.geolocation) { setGeoMsg("المتصفح لا يدعم تحديد الموقع"); return; }
+    setGeoBusy(true); setGeoMsg(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoBusy(false);
+        const { latitude, longitude } = pos.coords;
+        if (!isInSyria(latitude, longitude)) { setGeoMsg("موقعك الحالي خارج سوريا — اختر محافظة يدوياً"); setTimeout(()=>setGeoMsg(null),3500); return; }
+        const np = nearestProvince(latitude, longitude);
+        const p = PROVINCES.find(x => x.id === np.id || x.nameAr === np.nameAr);
+        if (p) {
+          setProvince(p); setSelectedDayIdx(null);
+          try {
+            const raw = localStorage.getItem("agro_settings");
+            const s = raw ? JSON.parse(raw) : {};
+            localStorage.setItem("agro_settings", JSON.stringify({ ...s, province: p.nameAr }));
+          } catch { /* ignore */ }
+          setGeoMsg(`📍 تم تحديد موقعك: ${p.nameAr}`);
+          setTimeout(() => setGeoMsg(null), 3500);
+        }
+      },
+      () => { setGeoBusy(false); setGeoMsg("تعذّر تحديد الموقع — تحقق من إذن الموقع"); setTimeout(()=>setGeoMsg(null),3500); },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
   }, []);
 
   const handleShare = useCallback(() => {
@@ -1545,17 +1585,40 @@ export default function WeatherPage() {
     <WorkspaceLayout>
       <AmbientBackground state={activeAmbient} />
 
-      <div className="relative z-10 min-h-screen h-auto" dir="rtl">
+      <div className="relative z-10 min-h-[100dvh] h-auto" dir="rtl">
+        {/* Geolocation toast */}
+        <AnimatePresence>
+          {geoMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              className="fixed top-4 start-1/2 -translate-x-1/2 z-[60] glass-card rounded-xl border border-emerald-500/30 px-4 py-2.5 text-xs font-bold text-emerald-300 font-arabic shadow-xl">
+              {geoMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="max-w-6xl mx-auto px-4 py-6 pb-40 space-y-5">
 
           {/* Header */}
           <motion.div className="flex items-start justify-between gap-4 flex-wrap"
             initial={{ opacity:0,y:-10 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.4,ease:EASE }}>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-black text-foreground tracking-tight">ذكاء الطقس الزراعي</h1>
               <p className="text-xs text-muted-foreground font-arabic mt-0.5">30 مايو 2026 — بيانات لحظية لجميع محافظات سوريا</p>
+              <PageGuide
+                summary="طقس زراعيّ لحظي على مستوى كل محافظة — لاتخاذ قرارات ري ورشّ وحصاد أدق."
+                services={["خريطة المحافظات", "توقّعات ٧ أيام", "محرّك الري ET₀", "إنذارات الطقس المتطرف", "تأثير المحاصيل", "مساعد الطقس"]}
+              />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <button
+                onClick={locateMe}
+                disabled={geoBusy}
+                title="تحديد موقعي تلقائياً"
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold border glass-card border-emerald-500/25 text-emerald-300 hover:bg-emerald-500/10 transition-all disabled:opacity-50"
+              >
+                {geoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
+                موقعي
+              </button>
               <button
                 onClick={handleShare}
                 className={cn(
@@ -1598,6 +1661,7 @@ export default function WeatherPage() {
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-emerald-400" />
                 <span className="text-sm font-bold text-foreground">شبكة المؤشرات الجوية</span>
+                <InfoTip label="المؤشرات الجوية" text="قراءات لحظية للرياح والرطوبة والإشعاع الشمسي وجودة الهواء — العوامل التي تحدّد توقيت الري والرش والحصاد." />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {metricCards.map((card,i) => <MetricCard key={card.label} {...card} index={i} />)}

@@ -16,6 +16,7 @@ import { SyriaMap } from "@/components/workspace/SyriaMap";
 import { RelativeTime } from "@/components/market/RelativeTime";
 import { SourceBadge } from "@/components/market/SourceBadge";
 import { cn } from "@/lib/utils";
+import { PageGuide } from "@/components/ui/PageGuide";
 import type { MarketResponse, CropPrice } from "@/app/api/market/route";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip as ReTooltip,
@@ -524,7 +525,7 @@ function MarketContent() {
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden">
-      <div className="p-7 max-w-[1440px] mx-auto w-full">
+      <div className="p-4 sm:p-7 max-w-[1440px] mx-auto w-full">
 
         {/* Header */}
         <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} transition={{duration:0.4}}
@@ -534,6 +535,10 @@ function MarketContent() {
             <p className="text-sm text-muted-foreground mt-0.5">
               {selectedRegion?`البيانات مصفاة لمحافظة: ${selectedRegion}`:"36 محصولاً · تحليل مباشر بـ 4 وكلاء · موسم 2026"}
             </p>
+            <PageGuide
+              summary="ذكاء الأسواق الزراعية — أسعار واتجاهات وتوصيات بيع تحمي دخلك."
+              services={["أسعار المحاصيل", "اتجاهات أسبوعية", "مقارنة المحافظات", "خريطة الإنتاج", "أفضل وقت للبيع"]}
+            />
           </div>
           <div className="flex items-center gap-2">
             {selectedRegion&&<button onClick={()=>setSelectedRegion(null)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/10 text-[11px] text-muted-foreground hover:text-foreground transition-colors"><X className="w-3 h-3"/>مسح</button>}

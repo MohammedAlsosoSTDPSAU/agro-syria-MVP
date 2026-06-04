@@ -15,7 +15,7 @@ export default function NewsPage() {
         {/* Ambient emerald glow backdrop */}
         <motion.div
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] rounded-full bg-emerald-500/[0.07] blur-[120px]"
+          className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(520px,85vw)] h-[min(520px,85vw)] rounded-full bg-emerald-500/[0.07] blur-[120px]"
           animate={{ opacity: [0.5, 0.85, 0.5], scale: [0.95, 1.05, 0.95] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
         />

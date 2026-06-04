@@ -563,7 +563,7 @@ function IntelligenceLibrary({
     : knowledgeCards;
 
   return (
-    <div className="w-64 flex-shrink-0 h-full flex flex-col glass-sidebar border-e border-emerald-500/10 overflow-hidden">
+    <div className="w-64 flex-shrink-0 h-full hidden lg:flex flex-col glass-sidebar border-e border-emerald-500/10 overflow-hidden">
 
       {/* Panel header */}
       <div className="px-4 pt-4 pb-3 border-b border-emerald-500/10 flex-shrink-0">
@@ -911,7 +911,7 @@ function AgentOperatingCenter({
   const alertCount  = runtimeAgents.filter((a) => a.status === "alert").length;
 
   return (
-    <div className="w-72 flex-shrink-0 h-full flex flex-col glass-status-bar overflow-hidden">
+    <div className="w-72 flex-shrink-0 h-full hidden lg:flex flex-col glass-status-bar overflow-hidden">
 
       {/* Panel header */}
       <div className="px-4 pt-4 pb-3 border-b border-emerald-500/10 flex-shrink-0">
@@ -1188,7 +1188,7 @@ function ChatCenter({
     )}>
 
       {/* Chat header */}
-      <div className="flex-shrink-0 px-5 py-3 border-b border-emerald-500/10 flex items-center gap-3" dir="rtl">
+      <div className="flex-shrink-0 px-3 sm:px-5 py-3 border-b border-emerald-500/10 flex items-center gap-3" dir="rtl">
         <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
           <Bot className="w-4 h-4 text-emerald-400" />
         </div>
@@ -1251,7 +1251,7 @@ function ChatCenter({
 
       {/* Messages area */}
       <div
-        className="flex-1 overflow-y-auto px-5 py-5 space-y-5 scrollbar-none relative"
+        className="flex-1 overflow-y-auto px-3 sm:px-5 py-5 space-y-5 scrollbar-none relative"
         dir="ltr"
         style={{
           backgroundImage: "radial-gradient(circle, rgba(52,211,153,0.055) 1px, transparent 1px)",
@@ -1294,7 +1294,7 @@ function ChatCenter({
 
       {/* Input area */}
       <div className={cn(
-        "flex-shrink-0 px-5 py-4 border-t transition-colors duration-300",
+        "flex-shrink-0 px-3 sm:px-5 py-4 border-t transition-colors duration-300",
         isEmergency ? "border-red-500/25 bg-red-500/[0.03]" : "border-emerald-500/10",
       )}>
         {/* Hidden file input */}
@@ -1775,10 +1775,10 @@ export function CopilotWorkspace() {
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="h-screen w-full bg-forest-mesh flex flex-col overflow-hidden">
+    <div className="h-[100dvh] w-full bg-forest-mesh flex flex-col overflow-hidden">
 
       {/* ── Top header bar ── */}
-      <header className="h-14 flex-shrink-0 flex items-center px-5 border-b border-emerald-500/12 bg-[oklch(0.075_0.016_152/90%)] backdrop-blur-xl">
+      <header className="h-14 flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 border-b border-emerald-500/12 bg-[oklch(0.075_0.016_152/90%)] backdrop-blur-xl">
 
         {/* RTL: brand appears on visual right, controls on visual left */}
         <div className="flex items-center gap-3" dir="rtl">
@@ -1793,8 +1793,8 @@ export function CopilotWorkspace() {
           </div>
         </div>
 
-        {/* Center: status chips */}
-        <div className="flex-1 flex items-center justify-center gap-3">
+        {/* Center: status chips (desktop only — keeps the mobile header clean) */}
+        <div className="flex-1 hidden md:flex items-center justify-center gap-3">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] font-semibold text-emerald-400 font-numeric">{activeAgents} وكيل نشط</span>

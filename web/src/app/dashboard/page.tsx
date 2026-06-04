@@ -21,6 +21,8 @@ import {
 } from "@/lib/dashboard-engine";
 import { buildContextFromStorage } from "@/lib/ai-service";
 import { cn } from "@/lib/utils";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
@@ -76,11 +78,11 @@ function AmbientBg({ mood }: { mood: AmbientMood }) {
           ? "radial-gradient(ellipse 120% 70% at 65% 5%, oklch(0.55 0.12 55 / 16%) 0%, transparent 60%)"
           : "radial-gradient(ellipse 100% 60% at 70% 10%, oklch(0.55 0.12 70 / 12%) 0%, transparent 55%)" }}
       />
-      <motion.div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full blur-3xl"
+      <motion.div className="absolute -top-40 -right-40 w-[min(700px,80vw)] h-[min(700px,80vw)] rounded-full blur-3xl"
         style={{ background: o1 }}
         animate={{ scale: [1, 1.07, 1], opacity: [0.7, 1, 0.7] }}
         transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }} />
-      <motion.div className="absolute -bottom-40 -left-28 w-[500px] h-[500px] rounded-full blur-3xl"
+      <motion.div className="absolute -bottom-40 -left-28 w-[min(500px,70vw)] h-[min(500px,70vw)] rounded-full blur-3xl"
         style={{ background: o2 }}
         animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.85, 0.5] }}
         transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 2 }} />
@@ -777,7 +779,10 @@ function GeoRiskMap({ selectedId }: { selectedId: string }) {
             <MapPin className="w-4 h-4 text-purple-400" />
           </div>
           <div>
-            <p className="text-sm font-bold text-foreground">مخطط المخاطر الجغرافي</p>
+            <p className="text-sm font-bold text-foreground flex items-center gap-1">
+              مخطط المخاطر الجغرافي
+              <InfoTip label="مخطط المخاطر" text="خريطة سوريا بحدود المحافظات الحقيقية، ملوّنة حسب درجة الخطر. اضغط محافظة لرؤية إنذاراتها النشطة وتقييم وكيل المناخ." />
+            </p>
             <p className="text-[10px] text-muted-foreground font-arabic">اضغط على أي محافظة لعرض التفاصيل</p>
           </div>
         </div>
@@ -1221,7 +1226,7 @@ function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
     <>
       <AmbientBg mood={data.ambient} />
 
-      <div className="relative z-10 min-h-screen h-auto" dir="rtl">
+      <div className="relative z-10 min-h-[100dvh] h-auto" dir="rtl">
         <div className="max-w-6xl mx-auto px-4 pt-6 pb-40 space-y-5">
 
           {/* ── Header ── */}
@@ -1243,6 +1248,10 @@ function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
               <p className="text-xs text-muted-foreground mt-0.5 font-arabic">
                 السبت 30 مايو 2026 — {data.province.nameAr}
               </p>
+              <PageGuide
+                summary="مركز قيادتك الزراعي — كل ما يخص مزرعتك في شاشة واحدة."
+                services={["إحاطة المناخ الذكية", "خريطة المخاطر", "مؤشر صحة المزرعة", "اتجاه السوق", "إجراءات سريعة"]}
+              />
             </div>
 
             {/* Right: Health badge + Command palette + Extreme alert */}
