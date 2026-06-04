@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   Droplets, AlertTriangle, CheckCircle, Bot, Shield,
@@ -2078,7 +2078,6 @@ export default function FieldsPage() {
   const [fields,     setFields]     = useState<Field[]>(FIELDS);
   const [showAdd,    setShowAdd]    = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const drawerDrag = useDragControls();  // drag the mobile drawer only from its handle
   const [overlay,    setOverlay]    = useState<Overlay>("health");
   const [panelView,  setPanelView]  = useState<PanelView>("overview");
 
@@ -2112,7 +2111,11 @@ export default function FieldsPage() {
             <Leaf className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <span className="text-sm font-bold text-foreground flex-shrink-0">حقولي</span>
-          <InfoTip label="حقولي" text="سجلّ حقولك الرقمي: أضف حقلاً بإحداثيات دقيقة، وتابع صحته وإجهاده المائي وإنذارات الآفات على الخريطة." className="hidden sm:inline-flex" />
+          <InfoTip
+            title="حقولي"
+            definition="سجلّ حقولك الرقمي — يحوّل كل حقل إلى كيان ذكي يراقبه وكلاؤنا على مدار الساعة."
+            services={["إضافة حقل بإحداثيات دقيقة", "متابعة صحة المحصول والإجهاد المائي", "إنذارات الآفات والأمراض", "لوحة استخبارات لكل حقل"]}
+          />
           <span className="text-white/20 text-xs mx-0.5 hidden sm:inline">·</span>
           <span className="text-[10.5px] text-muted-foreground truncate hidden sm:inline">
             {fields.length} حقول نشطة · {totalHa(fields).toFixed(1)} هـ إجمالاً
@@ -2242,35 +2245,25 @@ export default function FieldsPage() {
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 360, damping: 36 }}
-              drag="y"
-              dragControls={drawerDrag}
-              dragListener={false}                       /* don't drag from body → lets content scroll */
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0, bottom: 0.35 }}
-              onDragEnd={(_, info) => { if (info.offset.y > 110) setSelectedId(null); }}
               className="relative w-full glass-sidebar rounded-t-3xl border-t border-emerald-500/20 max-h-[85dvh] flex flex-col overflow-hidden"
               style={{ background: "oklch(0.085 0.014 152 / 96%)", backdropFilter: "blur(22px)" }}
             >
-              {/* Grab handle + header — the ONLY drag zone (touch-action:none) */}
-              <div
-                className="flex-shrink-0 pt-2.5 px-4 pb-2 border-b cursor-grab active:cursor-grabbing select-none"
-                style={{ borderColor: "rgba(255,255,255,0.06)", touchAction: "none" }}
-                onPointerDown={(e) => drawerDrag.start(e)}
-              >
-                <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-white/25" />
+              {/* Handle + header (tap the bar or ✕ — or the backdrop — to close) */}
+              <div className="flex-shrink-0 pt-2.5 px-4 pb-2 border-b select-none" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                <button onClick={() => setSelectedId(null)} aria-label="إغلاق"
+                  className="block mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-white/25 hover:bg-white/40 transition-colors" />
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-bold text-foreground/85">
                     {selectedField.name} <span className="text-muted-foreground/50 font-normal">· {selectedField.province}</span>
                   </span>
                   <button onClick={() => setSelectedId(null)} aria-label="إغلاق"
-                    className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted-foreground"
-                    onPointerDown={(e) => e.stopPropagation()}>
+                    className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted-foreground">
                     <ArrowLeft className="w-3.5 h-3.5 -rotate-90" />
                   </button>
                 </div>
               </div>
-              {/* Scrollable content — native vertical scroll (pan-y), drag isolated to handle */}
-              <div className="flex-1 min-h-0 overflow-hidden" style={{ touchAction: "pan-y" }}>
+              {/* Content host — the panel scrolls natively inside (overflow-y-auto + pan-y) */}
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <FieldIntelligencePanel
                   field={selectedField}
                   panelView={panelView}

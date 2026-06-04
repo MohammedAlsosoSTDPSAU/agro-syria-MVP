@@ -385,7 +385,11 @@ function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProv
         <div className="flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-[11px] text-muted-foreground font-arabic">خريطة المحافظات</span>
-          <InfoTip label="خريطة المحافظات" text="اضغط على أي محافظة لعرض طقسها. بدّل الطبقات (حرارة/رياح/أمطار) لرؤية التوزيع الجغرافي عبر سوريا." />
+          <InfoTip
+            title="خريطة المحافظات"
+            definition="خريطة طقس تفاعلية لكل محافظة سورية، تساعدك على رؤية الفروق المناخية واختيار منطقتك بدقّة."
+            services={["اضغط محافظة لعرض طقسها", "بدّل طبقات الحرارة/الرياح/الأمطار", "رصد التوزيع الجغرافي للطقس", "متابعة مؤشرات كل محافظة"]}
+          />
         </div>
         <div className="flex items-center gap-1 flex-wrap">
           {layers.map(l => (
@@ -1661,7 +1665,11 @@ export default function WeatherPage() {
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-emerald-400" />
                 <span className="text-sm font-bold text-foreground">شبكة المؤشرات الجوية</span>
-                <InfoTip label="المؤشرات الجوية" text="قراءات لحظية للرياح والرطوبة والإشعاع الشمسي وجودة الهواء — العوامل التي تحدّد توقيت الري والرش والحصاد." />
+                <InfoTip
+                  title="شبكة المؤشرات الجوية"
+                  definition="القراءات الجوية اللحظية التي تحدّد توقيت عملياتك الزراعية بدقّة — متى تروي، ترشّ، أو تحصد."
+                  services={["سرعة واتجاه الرياح", "الرطوبة النسبية واحتمال الهطول", "الإشعاع الشمسي ومؤشر UV", "جودة الهواء (AQI)"]}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {metricCards.map((card,i) => <MetricCard key={card.label} {...card} index={i} />)}

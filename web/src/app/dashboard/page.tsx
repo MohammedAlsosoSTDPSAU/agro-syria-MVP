@@ -781,7 +781,11 @@ function GeoRiskMap({ selectedId }: { selectedId: string }) {
           <div>
             <p className="text-sm font-bold text-foreground flex items-center gap-1">
               مخطط المخاطر الجغرافي
-              <InfoTip label="مخطط المخاطر" text="خريطة سوريا بحدود المحافظات الحقيقية، ملوّنة حسب درجة الخطر. اضغط محافظة لرؤية إنذاراتها النشطة وتقييم وكيل المناخ." />
+              <InfoTip
+                title="مخطط المخاطر الجغرافي"
+                definition="خريطة سوريا الحيّة التي تُظهر أين تتركّز مخاطر الطقس على المحاصيل، لتعرف بنظرة واحدة أين تحتاج الانتباه."
+                services={["حدود المحافظات السورية الحقيقية", "تلوين كل محافظة حسب درجة الخطر", "عرض الإنذارات النشطة عند الضغط", "قراءة تقييم وكيل المناخ"]}
+              />
             </p>
             <p className="text-[10px] text-muted-foreground font-arabic">اضغط على أي محافظة لعرض التفاصيل</p>
           </div>
