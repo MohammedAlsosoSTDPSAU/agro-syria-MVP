@@ -14,6 +14,7 @@ import {
   CircleCheck, CircleMinus, CircleX, BarChart3,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
+import { PROVINCES as GEO_PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import {
   PROVINCES, PROVINCE_FORECASTS,
   getAmbientGradient, getAQILabel, getUVLabel,
@@ -21,6 +22,10 @@ import {
   type ProvinceWeather, type AmbientState, type DayForecast, type RiskType,
 } from "@/lib/weather";
 import { cn } from "@/lib/utils";
+
+// Accurate governorate geometry (polygon + centroid), keyed by Arabic name —
+// the same reliable alignment mechanism used by the main dashboard map.
+const GEO_BY_NAME = new Map(GEO_PROVINCES.map(g => [g.name, g]));
 
 type Bezier   = [number, number, number, number];
 type MapLayer = "none" | "heat" | "wind" | "rain";
@@ -32,16 +37,6 @@ const fadeUp = {
     opacity: 1, y: 0,
     transition: { duration: 0.45, ease: EASE, delay: i * 0.08 },
   }),
-};
-
-const DOT_POSITIONS: Record<string, { x: number; y: number }> = {
-  "latakia":    { x: 0.11, y: 2.02 }, "tartus":     { x: 0.26, y: 2.73 },
-  "idlib":      { x: 1.09, y: 1.56 }, "aleppo":     { x: 1.68, y: 1.26 },
-  "raqqa":      { x: 3.75, y: 1.54 }, "hasakah":    { x: 5.72, y: 0.94 },
-  "hama":       { x: 1.22, y: 2.46 }, "homs":       { x: 1.19, y: 2.90 },
-  "deir-ez-zur":{ x: 5.04, y: 2.23 }, "rif-dimashq":{ x: 1.00, y: 3.73 },
-  "damascus":   { x: 0.72, y: 4.28 }, "quneitra":   { x: 0.18, y: 4.71 },
-  "daraa":      { x: 0.49, y: 5.27 }, "suwayda":    { x: 1.02, y: 5.18 },
 };
 
 const RISK_ICON: Record<RiskType, React.ElementType> = {
@@ -295,26 +290,99 @@ function HeroPulse({ province, overrideDay, onClearDay }: { province:ProvinceWea
   );
 }
 
-/* ─── Weather Map Panel ──────────────────────────────────────────────── */
-function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProvinceSelect }: {
+/* ─── Modern minimal climate glyphs (crisp vector, theme-aware colors) ── */
+function CloudShape({ fill }: { fill: string }) {
+  return (
+    <g fill={fill}>
+      <circle cx={-0.34} cy={0.06} r={0.30} />
+      <circle cx={0.08}  cy={-0.14} r={0.40} />
+      <circle cx={0.42}  cy={0.08} r={0.28} />
+      <rect x={-0.6} y={0.02} width={1.05} height={0.30} rx={0.15} />
+    </g>
+  );
+}
+
+function ClimateGlyph({ state, cx, cy, scale }: { state: AmbientState; cx: number; cy: number; scale: number }) {
+  const t = `translate(${cx} ${cy}) scale(${scale})`;
+  switch (state) {
+    case "sunny":
+      return (
+        <g transform={t}>
+          {Array.from({ length: 8 }).map((_, i) => {
+            const a = (i * Math.PI) / 4;
+            return (
+              <line key={i}
+                x1={Math.cos(a) * 0.64} y1={Math.sin(a) * 0.64}
+                x2={Math.cos(a) * 0.94} y2={Math.sin(a) * 0.94}
+                stroke="#fbbf24" strokeWidth={0.12} strokeLinecap="round" />
+            );
+          })}
+          <circle r={0.44} fill="#f59e0b" />
+          <circle r={0.44} fill="#fde68a" opacity={0.35} />
+        </g>
+      );
+    case "clear-night":
+      return (
+        <g transform={t}>
+          <path d="M0.2 -0.6 A0.62 0.62 0 1 0 0.2 0.6 A0.48 0.48 0 1 1 0.2 -0.6 Z" fill="#a5b4fc" />
+        </g>
+      );
+    case "cloudy":
+      return <g transform={t}><CloudShape fill="#cbd5e1" /></g>;
+    case "rainy":
+      return (
+        <g transform={t}>
+          <CloudShape fill="#94a3b8" />
+          {[-0.28, 0, 0.28].map((x, i) => (
+            <line key={i} x1={x} y1={0.42} x2={x - 0.07} y2={0.74}
+              stroke="#38bdf8" strokeWidth={0.1} strokeLinecap="round" />
+          ))}
+        </g>
+      );
+    case "dusty":
+      return (
+        <g transform={t}>
+          <circle cx={0} cy={-0.28} r={0.32} fill="#fb923c" opacity={0.9} />
+          {[0.18, 0.46, 0.74].map((y, i) => (
+            <line key={i} x1={-0.58 + (i % 2) * 0.14} y1={y - 0.3} x2={0.58 - (i % 2) * 0.14} y2={y - 0.3}
+              stroke="#f59e0b" strokeWidth={0.1} strokeLinecap="round" opacity={0.85} />
+          ))}
+        </g>
+      );
+    default:
+      return null;
+  }
+}
+
+function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProvinceSelect, forecast }: {
   province:ProvinceWeather; extremeIds:string[]; mapLayer:MapLayer;
-  onLayerChange:(l:MapLayer)=>void; onProvinceSelect:(id:string)=>void;
+  onLayerChange:(l:MapLayer)=>void; onProvinceSelect:(id:string)=>void; forecast:DayForecast[];
 }) {
+  const [hoverId, setHoverId] = useState<string|null>(null);
   const layers = [
     { id:"none"  as MapLayer, label:"عادي",  icon:MapPin,      color:"text-muted-foreground" },
     { id:"heat"  as MapLayer, label:"حرارة", icon:Thermometer, color:"text-red-400"          },
     { id:"wind"  as MapLayer, label:"رياح",  icon:Navigation,  color:"text-sky-400"          },
     { id:"rain"  as MapLayer, label:"أمطار", icon:CloudRain,   color:"text-blue-400"         },
   ];
+
+  // 7-day high-temp sparkline for the active governorate (real forecast data).
+  const temps = forecast.slice(0, 7).map(d => d.tempHigh);
+  const sMin = temps.length ? Math.min(...temps) : 0;
+  const sMax = temps.length ? Math.max(...temps) : 1;
+  const sSpan = sMax - sMin || 1;
+  const SW = 120, SH = 30;
+  const sparkPts = temps.map((t, i) => `${(i/(Math.max(temps.length-1,1)))*SW},${SH - ((t-sMin)/sSpan)*(SH-6) - 3}`).join(" ");
+
   return (
     <motion.div className="glass-card rounded-3xl p-4 flex flex-col gap-3"
       initial={{ opacity:0,x:12 }} animate={{ opacity:1,x:0 }} transition={{ duration:0.5,ease:EASE,delay:0.1 }} dir="rtl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-[11px] text-muted-foreground font-arabic">خريطة المحافظات</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {layers.map(l => (
             <button key={l.id} onClick={() => onLayerChange(l.id)}
               className={cn("flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all border",
@@ -324,28 +392,45 @@ function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProv
           ))}
         </div>
       </div>
-      <div className="flex-1 min-h-[220px]">
-        <svg viewBox="-0.06 -0.06 7.5574 5.6276" className="w-full h-full">
+
+      <div className="flex-1 min-h-[240px]">
+        <svg viewBox={VIEW_BOX} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
             <filter id="blur-heat" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="0.22"/></filter>
             <filter id="blur-rain" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="0.18"/></filter>
           </defs>
-          <image href="/vectors/syria_map.svg" x="-0.06" y="-0.06" width="7.5574" height="5.6276"
-            style={{ filter:"brightness(0) invert(1)", opacity:0.18 }} />
+
+          {/* Real governorate polygons — interactive, perfectly aligned */}
+          {PROVINCES.map(p => {
+            const geo = GEO_BY_NAME.get(p.nameAr); if(!geo) return null;
+            const isSel = p.id===province.id; const isExt = extremeIds.includes(p.id); const isHov = p.id===hoverId;
+            const base = isExt ? "oklch(0.62 0.22 28)" : isSel ? "oklch(0.696 0.170 162)" : "oklch(0.55 0.09 158)";
+            const op = isHov ? 0.62 : isSel ? 0.42 : isExt ? 0.40 : 0.16;
+            return (
+              <path key={p.id} className="geo-region" d={geo.path} fill={base} fillOpacity={op}
+                stroke={isSel ? "white" : "oklch(0.696 0.170 162 / 35%)"} strokeWidth={isSel ? 0.028 : 0.012}
+                onClick={() => onProvinceSelect(p.id)}
+                onMouseEnter={() => setHoverId(p.id)} onMouseLeave={() => setHoverId(null)}>
+                <title>{`${p.nameAr} — ${p.temp}°م`}</title>
+              </path>
+            );
+          })}
+
+          {/* Climate overlays anchored at true centroids */}
           <AnimatePresence>
             {mapLayer==="heat" && (
-              <motion.g key="heat" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
-                {PROVINCES.map(p => { const pos=DOT_POSITIONS[p.id]; if(!pos) return null;
-                  return <circle key={p.id} cx={pos.x} cy={pos.y} r={0.55} fill={tempToHeatColor(p.temp)} opacity={0.28} filter="url(#blur-heat)" />; })}
+              <motion.g key="heat" className="pointer-events-none" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
+                {PROVINCES.map(p => { const g=GEO_BY_NAME.get(p.nameAr); if(!g) return null;
+                  return <circle key={p.id} cx={g.cx} cy={g.cy} r={0.55} fill={tempToHeatColor(p.temp)} opacity={0.30} filter="url(#blur-heat)" />; })}
               </motion.g>
             )}
             {mapLayer==="wind" && (
-              <motion.g key="wind" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
-                {PROVINCES.map((p,i) => { const pos=DOT_POSITIONS[p.id]; if(!pos) return null;
+              <motion.g key="wind" className="pointer-events-none" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
+                {PROVINCES.map((p,i) => { const g=GEO_BY_NAME.get(p.nameAr); if(!g) return null;
                   const angle=WIND_DIRECTION_ANGLE[p.windDirection]??0;
                   const col=p.windSpeed>=25?"#ef4444":p.windSpeed>=18?"#f59e0b":"#38bdf8";
                   return (
-                    <motion.g key={p.id} transform={`translate(${pos.x},${pos.y}) rotate(${angle})`}
+                    <motion.g key={p.id} transform={`translate(${g.cx},${g.cy}) rotate(${angle})`}
                       animate={{ opacity:[0.5,1,0.5] }} transition={{ duration:1.8+(i%4)*0.4, repeat:Infinity, delay:(i%5)*0.3 }}>
                       <line x1="-0.17" y1="0" x2="0.17" y2="0" stroke={col} strokeWidth="0.04" strokeLinecap="round"/>
                       <path d="M 0.09 -0.07 L 0.17 0 L 0.09 0.07" fill="none" stroke={col} strokeWidth="0.035" strokeLinecap="round" strokeLinejoin="round"/>
@@ -355,42 +440,61 @@ function WeatherMapPanel({ province, extremeIds, mapLayer, onLayerChange, onProv
               </motion.g>
             )}
             {mapLayer==="rain" && (
-              <motion.g key="rain" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
-                {PROVINCES.map(p => { const pos=DOT_POSITIONS[p.id]; if(!pos||p.precipitation===0) return null;
+              <motion.g key="rain" className="pointer-events-none" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.5 }}>
+                {PROVINCES.map(p => { const g=GEO_BY_NAME.get(p.nameAr); if(!g||p.precipitation===0) return null;
                   const r=0.15+(p.precipitation/100)*0.55;
-                  return <circle key={p.id} cx={pos.x} cy={pos.y} r={r} fill="#38bdf8" opacity={0.12+(p.precipitation/100)*0.22} filter="url(#blur-rain)"/>; })}
+                  return <circle key={p.id} cx={g.cx} cy={g.cy} r={r} fill="#38bdf8" opacity={0.12+(p.precipitation/100)*0.22} filter="url(#blur-rain)"/>; })}
               </motion.g>
             )}
           </AnimatePresence>
+
+          {/* Centroid pins: climate icon + temperature (none) / marker (layers) */}
           {PROVINCES.map(p => {
-            const pos=DOT_POSITIONS[p.id]; if(!pos) return null;
-            const isSel=p.id===province.id; const isExt=extremeIds.includes(p.id);
+            const g = GEO_BY_NAME.get(p.nameAr); if(!g) return null;
+            const isSel = p.id===province.id; const isExt = extremeIds.includes(p.id);
             return (
-              <g key={p.id} onClick={() => onProvinceSelect(p.id)} style={{ cursor:"pointer" }}>
-                {isSel && <motion.circle cx={pos.x} cy={pos.y} r={0.22} fill="none" stroke="oklch(0.696 0.170 162 / 65%)" strokeWidth="0.055"
-                  initial={{ r:0.15,opacity:1 }} animate={{ r:0.42,opacity:0 }} transition={{ duration:1.5,repeat:Infinity,ease:"easeOut" }}/>}
-                {isExt&&!isSel && <motion.circle cx={pos.x} cy={pos.y} r={0.20} fill="none" stroke="oklch(0.65 0.22 28 / 65%)" strokeWidth="0.045"
-                  animate={{ opacity:[0.4,1,0.4] }} transition={{ duration:1.8,repeat:Infinity }}/>}
-                <circle cx={pos.x} cy={pos.y} r={isSel?0.15:0.10}
-                  fill={isSel?"oklch(0.696 0.170 162)":isExt?"oklch(0.65 0.22 28)":"oklch(0.65 0.08 155 / 80%)"}
-                  stroke={isSel?"white":"none"} strokeWidth="0.030"/>
-                {isSel && <text x={pos.x+0.22} y={pos.y+0.12} fontSize="0.26" fill="white" fontFamily="var(--font-cairo)">{p.nameAr}</text>}
+              <g key={`pin-${p.id}`} className="pointer-events-none">
+                {isSel && <motion.circle cx={g.cx} cy={g.cy} r={0.22} fill="none" stroke="oklch(0.696 0.170 162 / 65%)" strokeWidth="0.05"
+                  initial={{ r:0.12,opacity:1 }} animate={{ r:0.42,opacity:0 }} transition={{ duration:1.6,repeat:Infinity,ease:"easeOut" }}/>}
+                {isExt && <motion.circle cx={g.cx} cy={g.cy} r={0.18} fill="none" stroke="oklch(0.65 0.22 28 / 70%)" strokeWidth="0.04"
+                  animate={{ opacity:[0.35,1,0.35] }} transition={{ duration:1.8,repeat:Infinity }}/>}
+                {mapLayer==="none" ? (
+                  <>
+                    <ClimateGlyph state={p.ambientState} cx={g.cx} cy={g.cy - 0.06} scale={isSel ? 0.22 : 0.17} />
+                    <text x={g.cx} y={g.cy + 0.34} fontSize="0.22" textAnchor="middle" fill={tempToHeatColor(p.temp)} fontFamily="var(--font-numeric)" fontWeight="700">{p.temp}°</text>
+                  </>
+                ) : (
+                  <circle cx={g.cx} cy={g.cy} r={isSel?0.11:0.07}
+                    fill={isSel?"oklch(0.85 0.16 162)":isExt?"oklch(0.72 0.20 28)":"oklch(0.80 0.05 155 / 80%)"}/>
+                )}
+                {isSel && <text x={g.cx} y={g.cy-0.40} textAnchor="middle" fontSize="0.30" fill="currentColor" className="text-foreground" fontFamily="var(--font-cairo)" fontWeight="700">{p.nameAr}</text>}
               </g>
             );
           })}
-          <g>
-            <motion.circle cx={0.25} cy={0.22} r={0.11} fill="oklch(0.696 0.170 162)"
-              animate={{ opacity:[1,0.3,1] }} transition={{ duration:1.4,repeat:Infinity }}/>
-            <text x={0.42} y={0.36} fontSize="0.23" fill="oklch(0.696 0.170 162 / 80%)" fontFamily="var(--font-cairo)">مباشر</text>
-          </g>
         </svg>
       </div>
-      <div className="flex items-center justify-between pt-1 border-t border-white/[0.05] text-[10px] text-muted-foreground/60">
-        <div className="flex items-center gap-3">
+
+      {/* Footer: legend + active 7-day temperature sparkline */}
+      <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.05]">
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60">
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"/>محددة</div>
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>متطرف</div>
         </div>
-        {mapLayer!=="none" && <span className="text-emerald-400/60">{mapLayer==="heat"?"تدرج الحرارة":mapLayer==="wind"?"اتجاه الرياح":"توزيع الأمطار"}</span>}
+        {temps.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground/60 font-arabic whitespace-nowrap">حرارة ٧ أيام</span>
+            <svg viewBox={`0 0 ${SW} ${SH}`} className="w-[110px] h-[26px]" preserveAspectRatio="none" style={{ direction:"ltr" }}>
+              <defs>
+                <linearGradient id="wspark" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="oklch(0.696 0.170 162)" stopOpacity="0.30"/>
+                  <stop offset="100%" stopColor="oklch(0.696 0.170 162)" stopOpacity="0"/>
+                </linearGradient>
+              </defs>
+              <polygon points={`0,${SH} ${sparkPts} ${SW},${SH}`} fill="url(#wspark)" />
+              <polyline points={sparkPts} fill="none" stroke="oklch(0.72 0.15 162)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+            </svg>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -1468,11 +1572,21 @@ export default function WeatherPage() {
             </div>
           </motion.div>
 
-          {/* Row 1: Hero + Map */}
+          {/* Row 1: Active governorate detail + calibrated map */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
-            <HeroPulse province={province} overrideDay={activeForecast} onClearDay={() => setSelectedDayIdx(null)} />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${province.id}-${selectedDayIdx ?? "live"}`}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.35, ease: EASE }}
+              >
+                <HeroPulse province={province} overrideDay={activeForecast} onClearDay={() => setSelectedDayIdx(null)} />
+              </motion.div>
+            </AnimatePresence>
             <WeatherMapPanel province={province} extremeIds={extremeIds} mapLayer={mapLayer}
-              onLayerChange={setMapLayer} onProvinceSelect={handleSelect} />
+              onLayerChange={setMapLayer} onProvinceSelect={handleSelect} forecast={provinceForecast} />
           </div>
 
           {/* Row 2: 7-Day Forecast */}

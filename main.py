@@ -23,16 +23,17 @@ log = get_logger("agro_syria.main")
 settings = get_settings()
 
 
-# ── OpenAI startup probe ─────────────────────────────────────────────
-def _probe_openai_sync(api_key: str, model: str) -> bool:
-    """Run in executor — tests if the API key has usable quota.
+# ── LLM startup probe (provider-agnostic: Gemini or OpenAI) ──────────
+def _probe_llm_sync(api_key: str, model: str, base_url: str | None) -> bool:
+    """Run in executor — tests if the active provider key works.
 
-    Uses the synchronous openai client so the probe itself never blocks
-    the event loop; asyncio.wait_for provides the outer deadline.
+    Uses the synchronous openai client (pointed at Gemini's OpenAI-compatible
+    endpoint when configured) so the probe never blocks the event loop;
+    asyncio.wait_for provides the outer deadline.
     """
     try:
         import openai
-        client = openai.OpenAI(api_key=api_key, max_retries=0, timeout=5.0)
+        client = openai.OpenAI(api_key=api_key, base_url=base_url, max_retries=0, timeout=5.0)
         client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "test"}],
@@ -44,18 +45,19 @@ def _probe_openai_sync(api_key: str, model: str) -> bool:
 
 
 async def _probe_openai() -> None:
-    """Probe OpenAI at startup; mark unavailable on any failure."""
+    """Probe the active LLM provider at startup; mark unavailable on any failure."""
     import asyncio as _aio
-    from app.core.graph import _mark_openai_unavailable
+    from app.core.graph import _mark_openai_unavailable  # alias → mark_llm_unavailable
 
-    if not settings.openai_api_key:
+    if not settings.llm_api_key:
         _mark_openai_unavailable()
+        log.warning("No LLM API key configured — chat will use local synthesis")
         return
 
     try:
         ok = await _aio.wait_for(
             _aio.get_event_loop().run_in_executor(
-                None, _probe_openai_sync, settings.openai_api_key, settings.openai_model
+                None, _probe_llm_sync, settings.llm_api_key, settings.llm_model, settings.llm_base_url
             ),
             timeout=8.0,
         )
@@ -63,10 +65,10 @@ async def _probe_openai() -> None:
         ok = False
 
     if ok:
-        log.info("OpenAI API key verified ✓")
+        log.info("LLM provider '%s' verified ✓ (model: %s)", settings.llm_provider, settings.llm_model)
     else:
         _mark_openai_unavailable()
-        log.warning("OpenAI unavailable at startup — chat will use local synthesis")
+        log.warning("LLM provider '%s' unavailable at startup — chat will use local synthesis", settings.llm_provider)
 
 
 # ── Warm-up helper ───────────────────────────────────────────────────

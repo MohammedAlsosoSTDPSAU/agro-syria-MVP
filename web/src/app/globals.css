@@ -139,6 +139,54 @@
   --sidebar-ring:            oklch(0.696 0.170 162);
 }
 
+/* ─── Sun-Cycle Light Theme (auto 6AM–6PM) ─────────────────────────── */
+/* Soft whites · sage-green accents · deep-forest-green text             */
+.light {
+  --background:              oklch(0.985 0.008 145);  /* warm soft white */
+  --foreground:              oklch(0.30 0.045 152);   /* deep forest green text */
+
+  --card:                    oklch(0.995 0.004 145);
+  --card-foreground:         oklch(0.30 0.045 152);
+
+  --popover:                 oklch(0.995 0.004 145);
+  --popover-foreground:      oklch(0.30 0.045 152);
+
+  --primary:                 oklch(0.62 0.13 162);    /* deeper emerald for white bg */
+  --primary-foreground:      oklch(0.99 0.005 145);
+
+  --secondary:               oklch(0.95 0.018 150);   /* light sage */
+  --secondary-foreground:    oklch(0.30 0.045 152);
+
+  --muted:                   oklch(0.955 0.012 150);
+  --muted-foreground:        oklch(0.48 0.050 155);   /* medium sage-green */
+
+  --accent:                  oklch(0.62 0.13 162 / 12%);
+  --accent-foreground:       oklch(0.42 0.120 162);
+
+  --destructive:             oklch(0.60 0.220 27);
+
+  --border:                  oklch(0.55 0.060 155 / 22%);
+  --input:                   oklch(0.96 0.012 150);
+  --ring:                    oklch(0.62 0.130 162 / 45%);
+
+  --chart-1:                 oklch(0.62 0.13 162);
+  --chart-2:                 oklch(0.70 0.12 150);
+  --chart-3:                 oklch(0.55 0.13 162);
+  --chart-4:                 oklch(0.72 0.10 145);
+  --chart-5:                 oklch(0.80 0.08 140);
+
+  --sidebar:                 oklch(0.975 0.010 148);
+  --sidebar-foreground:      oklch(0.30 0.045 152);
+  --sidebar-primary:         oklch(0.62 0.13 162);
+  --sidebar-primary-foreground: oklch(0.99 0.005 145);
+  --sidebar-accent:          oklch(0.62 0.13 162 / 10%);
+  --sidebar-accent-foreground: oklch(0.40 0.120 162);
+  --sidebar-border:          oklch(0.55 0.060 155 / 18%);
+  --sidebar-ring:            oklch(0.62 0.13 162);
+
+  color-scheme: light;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -149,6 +197,12 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* Seamless sun-cycle theme cross-fade */
+  html,
+  body {
+    transition: background-color 500ms ease, color 500ms ease;
   }
 }
 
@@ -227,4 +281,171 @@
 
   /* ── Arabic font utility (IBM Plex Sans Arabic for dense labels) ──── */
   .font-arabic { font-family: var(--font-arabic); }
+
+  /* ── Interactive geographic hazard-map regions (dashboard) ───────── */
+  .geo-region {
+    transition: fill 250ms ease, fill-opacity 250ms ease, filter 250ms ease;
+    cursor: pointer;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .geo-region:hover { filter: brightness(1.22) saturate(1.15); }
+  .geo-dot { transition: r 200ms ease, fill 250ms ease; }
+}
+
+/* ─── Light-mode surface adaptations (glassmorphism on soft white) ──── */
+.light .glass-card {
+  background: oklch(0.995 0.004 145 / 72%);
+  border: 1px solid oklch(0.55 0.080 155 / 16%);
+  box-shadow: 0 4px 24px oklch(0.45 0.060 155 / 9%);
+}
+.light .glass-sidebar {
+  background: oklch(0.985 0.008 148 / 88%);
+  border-inline-start: 1px solid oklch(0.55 0.080 155 / 12%);
+}
+.light .bg-forest-mesh {
+  background-color: oklch(0.985 0.008 145);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.62 0.13 162 / 11%), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 90%, oklch(0.70 0.12 150 / 8%), transparent),
+    radial-gradient(ellipse 40% 60% at 10% 60%, oklch(0.78 0.10 145 / 6%), transparent);
+}
+.light .emerald-glow {
+  box-shadow:
+    0 0 0 1px oklch(0.62 0.13 162 / 22%),
+    0 8px 34px oklch(0.62 0.13 162 / 12%),
+    0 4px 18px oklch(0.45 0.06 155 / 10%);
+}
+.light .emerald-glow-sm {
+  box-shadow:
+    0 0 0 1px oklch(0.62 0.13 162 / 26%),
+    0 0 14px oklch(0.62 0.13 162 / 14%);
+}
+
+/* Surfaces cross-fade together with the palette on sun-cycle switch */
+.glass-card,
+.glass-sidebar,
+.bg-forest-mesh {
+  transition: background-color 500ms ease, border-color 500ms ease, box-shadow 500ms ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Light-mode depth remap.
+   The UI is dark-first: nested surfaces use white-alpha films
+   (bg-white/[x]) and hairline white borders that vanish on a white page.
+   In Light mode we remap them to soft forest-green tints so every nested
+   layer keeps legible, gorgeous depth. Unlayered rules outrank Tailwind's
+   layered utilities, so no !important is needed.
+   ───────────────────────────────────────────────────────────────────── */
+.light .bg-white\/\[0\.005\] { background-color: oklch(0.32 0.045 152 / 0.020); }
+.light .bg-white\/\[0\.01\]  { background-color: oklch(0.32 0.045 152 / 0.025); }
+.light .bg-white\/\[0\.02\]  { background-color: oklch(0.32 0.045 152 / 0.032); }
+.light .bg-white\/\[0\.025\] { background-color: oklch(0.32 0.045 152 / 0.038); }
+.light .bg-white\/\[0\.03\]  { background-color: oklch(0.32 0.045 152 / 0.042); }
+.light .bg-white\/\[0\.04\]  { background-color: oklch(0.32 0.045 152 / 0.050); }
+.light .bg-white\/\[0\.05\]  { background-color: oklch(0.32 0.045 152 / 0.058); }
+.light .bg-white\/\[0\.06\]  { background-color: oklch(0.32 0.045 152 / 0.066); }
+.light .bg-white\/\[0\.07\]  { background-color: oklch(0.32 0.045 152 / 0.075); }
+.light .bg-white\/\[0\.08\]  { background-color: oklch(0.32 0.045 152 / 0.085); }
+.light .bg-white\/\[0\.10\]  { background-color: oklch(0.32 0.045 152 / 0.100); }
+.light .bg-white\/\[0\.12\]  { background-color: oklch(0.32 0.045 152 / 0.110); }
+.light .bg-white\/5  { background-color: oklch(0.32 0.045 152 / 0.060); }
+.light .bg-white\/10 { background-color: oklch(0.32 0.045 152 / 0.085); }
+.light .bg-white\/15 { background-color: oklch(0.32 0.045 152 / 0.120); }
+.light .bg-white\/20 { background-color: oklch(0.32 0.045 152 / 0.160); }
+.light .bg-white\/25 { background-color: oklch(0.32 0.045 152 / 0.200); }
+
+.light .hover\:bg-white\/\[0\.02\]:hover { background-color: oklch(0.32 0.045 152 / 0.050); }
+.light .hover\:bg-white\/\[0\.03\]:hover { background-color: oklch(0.32 0.045 152 / 0.055); }
+.light .hover\:bg-white\/\[0\.04\]:hover { background-color: oklch(0.32 0.045 152 / 0.062); }
+.light .hover\:bg-white\/\[0\.05\]:hover { background-color: oklch(0.32 0.045 152 / 0.072); }
+.light .hover\:bg-white\/\[0\.06\]:hover { background-color: oklch(0.32 0.045 152 / 0.082); }
+.light .hover\:bg-white\/\[0\.08\]:hover { background-color: oklch(0.32 0.045 152 / 0.095); }
+.light .hover\:bg-white\/\[0\.10\]:hover { background-color: oklch(0.32 0.045 152 / 0.110); }
+.light .hover\:bg-white\/\[0\.12\]:hover { background-color: oklch(0.32 0.045 152 / 0.125); }
+
+.light .border-white\/\[0\.04\] { border-color: oklch(0.45 0.060 155 / 0.12); }
+.light .border-white\/\[0\.05\] { border-color: oklch(0.45 0.060 155 / 0.13); }
+.light .border-white\/\[0\.06\] { border-color: oklch(0.45 0.060 155 / 0.14); }
+.light .border-white\/\[0\.07\] { border-color: oklch(0.45 0.060 155 / 0.15); }
+.light .border-white\/\[0\.08\] { border-color: oklch(0.45 0.060 155 / 0.16); }
+.light .border-white\/\[0\.09\] { border-color: oklch(0.45 0.060 155 / 0.17); }
+.light .border-white\/\[0\.1\]  { border-color: oklch(0.45 0.060 155 / 0.18); }
+.light .border-white\/\[0\.10\] { border-color: oklch(0.45 0.060 155 / 0.18); }
+.light .border-white\/\[0\.12\] { border-color: oklch(0.45 0.060 155 / 0.20); }
+.light .border-white\/\[0\.14\] { border-color: oklch(0.45 0.060 155 / 0.22); }
+.light .border-white\/\[0\.15\] { border-color: oklch(0.45 0.060 155 / 0.22); }
+
+/* Dim white text → legible forest text on light surfaces */
+.light .text-white\/20 { color: oklch(0.34 0.045 152 / 0.45); }
+.light .text-white\/30 { color: oklch(0.34 0.045 152 / 0.50); }
+.light .text-white\/35 { color: oklch(0.34 0.045 152 / 0.55); }
+.light .text-white\/40 { color: oklch(0.34 0.045 152 / 0.60); }
+.light .text-white\/50 { color: oklch(0.32 0.045 152 / 0.65); }
+.light .text-white\/55 { color: oklch(0.32 0.045 152 / 0.68); }
+.light .text-white\/75 { color: oklch(0.30 0.045 152 / 0.78); }
+.light .text-white\/80 { color: oklch(0.30 0.045 152 / 0.82); }
+.light .text-white\/90 { color: oklch(0.30 0.045 152 / 0.88); }
+
+/* Inputs in light mode: forest hairline border + readable placeholder.
+   Background is left to each field's own utility (remapped above) so wrapped
+   inputs don't turn into stark white boxes. */
+.light input,
+.light textarea {
+  border-color: oklch(0.55 0.060 155 / 0.20);
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: oklch(0.50 0.040 155 / 0.6);
+}
+
+/* ─── Horizontal overflow guard (mobile-first) ─────────────────────── */
+html, body { overflow-x: hidden; max-width: 100%; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Marketing deck — PDF export print styles (route: /marketing-slides)
+   Each slide becomes a standalone full-bleed landscape page; all UI chrome
+   is hidden; mesh/glows/colors print at full fidelity.
+   ───────────────────────────────────────────────────────────────────── */
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+
+  /* Preserve every colour (backgrounds, glows, gradients, text) */
+  .marketing-deck,
+  .marketing-deck * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Release the on-screen viewport lock so all pages can flow */
+  .marketing-deck {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+  }
+
+  /* Hide all interactive chrome from the printed document */
+  .marketing-deck .deck-ui,
+  .print\:hidden { display: none !important; }
+
+  /* The print-only container holds every slide */
+  .marketing-deck .deck-print { display: block !important; }
+
+  .deck-print-page {
+    width: 100%;
+    min-height: 100vh;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 5vh 5vw;
+    box-sizing: border-box;
+    break-inside: avoid;
+    break-after: always;
+    page-break-after: always;
+  }
+  .deck-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
 }

@@ -9,8 +9,10 @@ import {
   Activity, Zap, ChevronLeft, Search, Plus,
   BarChart3, LayoutGrid, Leaf, BadgeCheck,
   Clock, ChevronRight, Layers, CloudOff,
+  X, Sparkles,
 } from "lucide-react";
 import { PROVINCES } from "@/lib/weather";
+import { PROVINCES as GEO_PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { AgentChat }       from "@/components/workspace/AgentChat";
 import {
@@ -413,16 +415,6 @@ function FarmStats({ data }: { data: DashboardData }) {
 }
 
 /* ─── Geo dot positions (same coordinate system as weather page) ─────── */
-const DASH_DOTS: Record<string, { x: number; y: number }> = {
-  "latakia":    { x:0.11, y:2.02 }, "tartus":     { x:0.26, y:2.73 },
-  "idlib":      { x:1.09, y:1.56 }, "aleppo":     { x:1.68, y:1.26 },
-  "raqqa":      { x:3.75, y:1.54 }, "hasakah":    { x:5.72, y:0.94 },
-  "hama":       { x:1.22, y:2.46 }, "homs":       { x:1.19, y:2.90 },
-  "deir-ez-zur":{ x:5.04, y:2.23 }, "rif-dimashq":{ x:1.00, y:3.73 },
-  "damascus":   { x:0.72, y:4.28 }, "quneitra":   { x:0.18, y:4.71 },
-  "daraa":      { x:0.49, y:5.27 }, "suwayda":    { x:1.02, y:5.18 },
-};
-
 /* ─── Task defaults per crop ─────────────────────────────────────────── */
 function getDailyTasks(cropKey: string | null): string[] {
   const base = ["فحص نظام الري والتحقق من الضغط", "مراجعة تقرير الطقس لليوم", "تسجيل ملاحظات الحقل"];
@@ -753,9 +745,28 @@ function AgentActivityStream({
   );
 }
 
-/* ─── Geographic Risk Map ────────────────────────────────────────────── */
+/* ─── Geographic Risk Map (calibrated, interactive) ──────────────────── */
+// Accurate governorate geometry, keyed by Arabic name → cx/cy/path.
+const GEO_BY_NAME = new Map(GEO_PROVINCES.map(g => [g.name, g]));
+
+interface ProvinceAlert { label: string; sev: "high" | "med" }
+
+function provinceAlerts(p: import("@/lib/weather").ProvinceWeather): ProvinceAlert[] {
+  const a: ProvinceAlert[] = [];
+  if (p.isExtreme) a.push({ label: "طقس متطرف", sev: "high" });
+  if (p.uvIndex >= 10) a.push({ label: "أشعة فوق بنفسجية مرتفعة", sev: "med" });
+  if (p.airQualityIndex > 100) a.push({ label: "جودة هواء منخفضة", sev: "med" });
+  if (p.precipitation === 0 && p.humidity < 25) a.push({ label: "إجهاد جفاف", sev: "med" });
+  return a;
+}
+
 function GeoRiskMap({ selectedId }: { selectedId: string }) {
   const extremeIds = PROVINCES.filter(p => p.isExtreme).map(p => p.id);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const active = activeId ? PROVINCES.find(p => p.id === activeId) ?? null : null;
+  const alerts = active ? provinceAlerts(active) : [];
 
   return (
     <motion.div className="glass-card rounded-3xl p-4 flex flex-col gap-3"
@@ -767,7 +778,7 @@ function GeoRiskMap({ selectedId }: { selectedId: string }) {
           </div>
           <div>
             <p className="text-sm font-bold text-foreground">مخطط المخاطر الجغرافي</p>
-            <p className="text-[10px] text-muted-foreground font-arabic">توزيع الإنذارات — سوريا</p>
+            <p className="text-[10px] text-muted-foreground font-arabic">اضغط على أي محافظة لعرض التفاصيل</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
@@ -777,51 +788,144 @@ function GeoRiskMap({ selectedId }: { selectedId: string }) {
         </div>
       </div>
 
-      <div className="relative rounded-2xl overflow-hidden bg-white/[0.02] border border-white/[0.06]" style={{ height:"250px" }}>
-        <svg viewBox="-0.06 -0.06 7.5574 5.6276" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-          <image href="/vectors/syria_map.svg" x="-0.06" y="-0.06"
-            width="7.5574" height="5.6276"
-            style={{ filter:"brightness(0) invert(1)", opacity:0.15 }} />
-          {PROVINCES.map((p, i) => {
-            const pos  = DASH_DOTS[p.id];
-            if (!pos) return null;
+      <div className="relative rounded-2xl overflow-hidden bg-white/[0.02] border border-white/[0.06]" style={{ height:"260px" }}>
+        <svg viewBox={VIEW_BOX} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+          {/* Governorate regions — real borders, coloured by risk */}
+          {PROVINCES.map((p) => {
+            const geo = GEO_BY_NAME.get(p.nameAr);
+            if (!geo) return null;
+            const isSel = p.id === selectedId;
+            const isAct = p.id === activeId;
+            const isExt = extremeIds.includes(p.id);
+            const isHov = p.id === hoverId;
+            const fill = isExt
+              ? "oklch(0.62 0.22 28)"
+              : isSel
+                ? "oklch(0.696 0.170 162)"
+                : "oklch(0.55 0.09 158)";
+            const opacity = isAct ? 0.85 : isHov ? 0.6 : isExt ? 0.42 : isSel ? 0.4 : 0.16;
+            return (
+              <path
+                key={p.id}
+                className="geo-region"
+                d={geo.path}
+                fill={fill}
+                fillOpacity={opacity}
+                stroke={isAct ? "white" : "oklch(0.696 0.170 162 / 35%)"}
+                strokeWidth={isAct ? 0.03 : 0.012}
+                onClick={() => setActiveId(p.id)}
+                onMouseEnter={() => setHoverId(p.id)}
+                onMouseLeave={() => setHoverId(null)}
+              >
+                <title>{p.nameAr}</title>
+              </path>
+            );
+          })}
+
+          {/* Centroid markers + pulses */}
+          {PROVINCES.map((p) => {
+            const geo = GEO_BY_NAME.get(p.nameAr);
+            if (!geo) return null;
             const isSel = p.id === selectedId;
             const isExt = extremeIds.includes(p.id);
             return (
-              <g key={p.id}>
+              <g key={`dot-${p.id}`} className="pointer-events-none">
                 {isSel && (
-                  <motion.circle cx={pos.x} cy={pos.y} r={0.22}
-                    fill="none" stroke="oklch(0.696 0.170 162 / 60%)" strokeWidth="0.055"
-                    initial={{ r:0.15, opacity:1 }} animate={{ r:0.42, opacity:0 }}
-                    transition={{ duration:1.5, repeat:Infinity, ease:"easeOut" }}/>
+                  <motion.circle cx={geo.cx} cy={geo.cy} r={0.22}
+                    fill="none" stroke="oklch(0.696 0.170 162 / 60%)" strokeWidth="0.045"
+                    initial={{ r:0.12, opacity:1 }} animate={{ r:0.40, opacity:0 }}
+                    transition={{ duration:1.6, repeat:Infinity, ease:"easeOut" }}/>
                 )}
-                {isExt && !isSel && (
-                  <motion.circle cx={pos.x} cy={pos.y} r={0.18}
-                    fill="none" stroke="oklch(0.65 0.22 28 / 60%)" strokeWidth="0.045"
-                    animate={{ opacity:[0.4,1,0.4] }} transition={{ duration:1.8, repeat:Infinity }}/>
+                {isExt && (
+                  <motion.circle cx={geo.cx} cy={geo.cy} r={0.16}
+                    fill="none" stroke="oklch(0.65 0.22 28 / 70%)" strokeWidth="0.04"
+                    animate={{ opacity:[0.35,1,0.35] }} transition={{ duration:1.8, repeat:Infinity }}/>
                 )}
-                <circle cx={pos.x} cy={pos.y}
-                  r={isSel ? 0.14 : 0.09}
-                  fill={isSel ? "oklch(0.696 0.170 162)" : isExt ? "oklch(0.65 0.22 28)" : "oklch(0.65 0.08 155 / 70%)"}
-                  stroke={isSel ? "white" : "none"} strokeWidth="0.025"/>
-                {isSel && (
-                  <text x={pos.x+0.20} y={pos.y+0.11} fontSize="0.24" fill="white" fontFamily="var(--font-cairo)">
-                    {p.nameAr}
-                  </text>
-                )}
+                <circle className="geo-dot" cx={geo.cx} cy={geo.cy}
+                  r={isSel ? 0.10 : 0.07}
+                  fill={isSel ? "oklch(0.85 0.16 162)" : isExt ? "oklch(0.72 0.20 28)" : "oklch(0.80 0.05 155 / 80%)"}/>
               </g>
             );
           })}
         </svg>
 
         {/* Focus badge */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1.5">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1.5 pointer-events-none">
           <motion.div className="w-1.5 h-1.5 rounded-full bg-emerald-400"
             animate={{ opacity:[1,0.2,1] }} transition={{ duration:1.2, repeat:Infinity }}/>
           <span className="text-[9px] text-emerald-400 font-bold font-arabic">
             {PROVINCES.find(p => p.id === selectedId)?.nameAr ?? "سوريا"}
           </span>
         </div>
+
+        {/* ── Glassmorphic detail drawer (bottom-sheet, responsive) ── */}
+        <AnimatePresence>
+          {active && (
+            <>
+              <motion.button
+                aria-label="إغلاق"
+                className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+                initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+                onClick={() => setActiveId(null)}
+              />
+              <motion.div
+                key={active.id}
+                className="absolute inset-x-2 bottom-2 glass-card rounded-2xl p-4 emerald-glow-sm"
+                initial={{ y:"110%", opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:"110%", opacity:0 }}
+                transition={{ type:"spring", stiffness:380, damping:34 }}
+                dir="rtl"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center border",
+                      active.isExtreme ? "bg-red-500/12 border-red-500/25" : "bg-emerald-500/12 border-emerald-500/25")}>
+                      <MapPin className={cn("w-4 h-4", active.isExtreme ? "text-red-400" : "text-emerald-400")} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-foreground leading-none">{active.nameAr}</p>
+                      <p className="text-[10px] text-muted-foreground font-arabic mt-1">{active.region}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-end">
+                      <p className="text-lg font-black font-numeric leading-none text-foreground">{active.temp}°</p>
+                      <p className="text-[9px] text-muted-foreground font-arabic mt-0.5">{active.condition}</p>
+                    </div>
+                    <button onClick={() => setActiveId(null)}
+                      className="w-7 h-7 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center transition-colors">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground rotate-90" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active alerts */}
+                <div className="flex items-center flex-wrap gap-1.5 mt-3">
+                  <span className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold font-arabic border",
+                    alerts.length ? "bg-amber-500/12 border-amber-500/25 text-amber-300" : "bg-emerald-500/12 border-emerald-500/25 text-emerald-300")}>
+                    <AlertTriangle className="w-3 h-3" />
+                    {alerts.length ? `${alerts.length} إنذار نشط` : "لا إنذارات"}
+                  </span>
+                  {alerts.map(a => (
+                    <span key={a.label}
+                      className={cn("rounded-lg px-2 py-1 text-[9px] font-arabic border",
+                        a.sev === "high" ? "bg-red-500/10 border-red-500/22 text-red-300" : "bg-amber-500/10 border-amber-500/22 text-amber-300/90")}>
+                      {a.label}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Weather agent risk evaluation */}
+                <div className="mt-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/15 p-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[10px] font-bold text-emerald-400 font-arabic">تقييم وكيل المناخ</span>
+                  </div>
+                  <p className="text-[11px] text-foreground/85 leading-relaxed font-arabic">{active.aiSummary}</p>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Legend */}
@@ -964,6 +1068,73 @@ function QuickActionsCard({ onAskAI }: { onAskAI: () => void }) {
 }
 
 /* ─── Main dashboard content ─────────────────────────────────────────── */
+/* ─── Onboarding Welcome Banner (intent clarity) ─────────────────────── */
+function OnboardingBanner({ onAskAI }: { onAskAI: () => void }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try { setShow(localStorage.getItem("agro-onboard-v1") !== "1"); } catch { setShow(true); }
+  }, []);
+  const dismiss = () => {
+    try { localStorage.setItem("agro-onboard-v1", "1"); } catch { /* ignore */ }
+    setShow(false);
+  };
+
+  const suggestions = ["كيف أروي القمح في درعا؟", "حلّل تربة حمضية", "متى أزرع الشعير؟"];
+
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.div
+          initial={{ opacity: 0, y: -8, height: 0 }}
+          animate={{ opacity: 1, y: 0, height: "auto" }}
+          exit={{ opacity: 0, y: -8, height: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="relative overflow-hidden glass-card rounded-3xl p-5 sm:p-6 emerald-glow-sm"
+        >
+          <div className="absolute inset-0 bg-forest-mesh opacity-40 pointer-events-none" />
+          <button onClick={dismiss} aria-label="إغلاق الترحيب"
+            className="absolute top-3 left-3 w-7 h-7 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center transition-colors z-10">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+
+          <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-black text-foreground leading-tight">
+                أهلاً بك في منصّة <span className="text-emerald-gradient">أغرو-سيريا</span> الذكية
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 font-arabic leading-relaxed">
+                وكلاؤنا البرمجيون جاهزون لتحليل أرضك — اسأل عن الري أو التربة أو السوق، وسيتعاون فريق
+                الوكلاء ليعطيك جواباً واضحاً بلهجتك.
+              </p>
+
+              {/* Helper suggestion chips — guide the user's first intent */}
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className="text-[10px] text-muted-foreground/60 font-arabic">جرّب أن تسأل:</span>
+                {suggestions.map(s => (
+                  <button key={s} onClick={onAskAI}
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500/[0.08] hover:bg-emerald-500/[0.16] border border-emerald-500/20 px-3 py-1.5 text-[11px] text-emerald-200 font-arabic transition-all duration-200">
+                    <Bot className="w-3 h-3 text-emerald-400/80" />
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={onAskAI}
+              className="flex-shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400 px-4 py-2.5 text-sm font-bold font-arabic transition-all duration-200 emerald-glow-sm">
+              <Bot className="w-4 h-4" />
+              ابدأ المحادثة
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [cropKey, setCropKey] = useState<string | null>(null);
@@ -1104,6 +1275,9 @@ function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
               )}
             </div>
           </motion.div>
+
+          {/* ── Onboarding Welcome Banner (intent clarity) ── */}
+          <OnboardingBanner onAskAI={onAskAI} />
 
           {/* ── Alerts Ribbon ── */}
           <AlertsRibbon alerts={effective.alerts} />

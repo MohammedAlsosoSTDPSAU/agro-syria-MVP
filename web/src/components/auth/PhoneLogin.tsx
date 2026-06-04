@@ -136,7 +136,7 @@ export function PhoneLogin() {
         animate="visible"
         className={cn(
           "relative w-full max-w-sm mx-4",
-          "glass-card emerald-glow rounded-2xl p-8",
+          "glass-card emerald-glow rounded-2xl p-6 sm:p-8",
         )}
       >
         {/* Top emerald line */}
@@ -174,7 +174,7 @@ export function PhoneLogin() {
             width={220}
             height={245}
             draggable={false}
-            className="w-[220px] h-auto select-none mb-3"
+            className="w-[180px] sm:w-[220px] max-w-full h-auto select-none mb-3"
           />
 
           <motion.p
@@ -200,6 +200,12 @@ export function PhoneLogin() {
                   <br />
                   خلينا نبدأ.
                 </p>
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/22 px-3.5 py-1.5">
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px] text-emerald-300/90 font-arabic">
+                    وكلاؤنا البرمجيون جاهزون لتحليل أرضك
+                  </span>
+                </div>
               </motion.div>
             ) : (
               <motion.div

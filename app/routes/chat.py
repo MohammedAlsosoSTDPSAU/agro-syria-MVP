@@ -8,8 +8,14 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import get_settings
-from app.core.graph import get_compiled_graph, _local_synthesis
+from app.core.graph import get_compiled_graph
 from app.core.logging import get_logger
+from app.orchestration.schemas import (
+    LiaisonOutput,
+    SynthesizerOutput,
+    VisionOutput,
+    coerce,
+)
 from app.schema.chat import AgentThought, ChatRequest, ChatResponse, VisualizationData
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -23,8 +29,29 @@ _AGENT_META: dict[str, dict] = {
     "synthesizer":{"role_ar": "المُجمِّع الاستراتيجي",  "is_status": False},
 }
 
-# Reply priority: synthesizer wins; vision is fallback for image-only flows
-_REPLY_PRIORITY = ["synthesizer", "vision", "field", "liaison"]
+def _resolve_output(ctx: dict) -> tuple[str, dict | None]:
+    """Extract the user-facing reply + visualization from typed agent outputs.
+
+    Priority mirrors the pipeline's terminal states: the Synthesizer's final
+    answer wins; otherwise the Liaison short-circuit reply (greeting / slot-ask).
+    Everything is read from the strongly-typed contract — no string parsing.
+    """
+    synth = ctx.get("synthesizer_output")
+    if synth is not None:
+        out = coerce(SynthesizerOutput, synth)
+        return out.reply_ar, out.visualization
+
+    liaison = ctx.get("liaison_output")
+    if liaison is not None:
+        lo = coerce(LiaisonOutput, liaison)
+        if lo.reply_ar:
+            return lo.reply_ar, None
+
+    vision = ctx.get("vision_output")
+    if vision is not None:
+        return coerce(VisionOutput, vision).description_ar, None
+
+    return "", None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -74,28 +101,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
         )
 
-    reply = ""
-    for agent_name in _REPLY_PRIORITY:
-        found = next(
-            (t.thought for t in reversed(chain) if t.agent == agent_name and t.thought.strip()),
-            None,
-        )
-        if found:
-            reply = found
-            break
-
+    # Reply + visualization come from the typed agent outputs (the data
+    # contract) — never from parsing message strings.
+    final_ctx = final_state.get("agricultural_context", {})
+    reply, raw_viz = _resolve_output(final_ctx)
     if not reply:
         reply = "عذراً، حدث خطأ. حاول مرة أخرى."
 
-    log.info(
-        "reply agent=%s len=%d",
-        next((t.agent for t in reversed(chain) if t.thought == reply), "?"),
-        len(reply),
-    )
+    log.info("reply len=%d viz=%s", len(reply), bool(raw_viz))
 
-    # Thread visualization data from graph state into response
     viz: VisualizationData | None = None
-    raw_viz = final_state.get("agricultural_context", {}).get("visualization")
     if raw_viz:
         try:
             viz = VisualizationData.model_validate(raw_viz)

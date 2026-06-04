@@ -380,7 +380,7 @@ function MarketCopilot() {
   return (
     <>
       <motion.button whileHover={{scale:1.06}} whileTap={{scale:0.95}} onClick={()=>setOpen(v=>!v)}
-        className="fixed bottom-6 left-6 z-50 w-12 h-12 rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 md:bottom-6 md:left-6 z-50 w-12 h-12 rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white"
         aria-label="مساعد السوق">
         <AnimatePresence mode="wait">
           {open
@@ -393,7 +393,7 @@ function MarketCopilot() {
         {open && (
           <motion.div initial={{opacity:0,x:-28,scale:0.94}} animate={{opacity:1,x:0,scale:1}} exit={{opacity:0,x:-28,scale:0.94}}
             transition={{duration:0.26,ease:EASE}}
-            className="fixed bottom-[88px] left-6 z-50 w-76 glass-card rounded-2xl border border-emerald-500/20 overflow-hidden shadow-2xl"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+9rem)] left-4 md:bottom-[88px] md:left-6 z-50 w-[calc(100vw-2rem)] sm:w-76 glass-card rounded-2xl border border-emerald-500/20 overflow-hidden shadow-2xl"
             dir="rtl">
             <div className="flex items-center gap-2 p-4 border-b border-white/[0.06]">
               <div className="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">

@@ -1,17 +1,27 @@
-"""Agro-Syria LangGraph orchestration — Phase 4.3.
+"""Agro-Syria LangGraph orchestration — Phase 4.4 (parallel data stage).
 
-Flow (no image):
-  START -> Liaison Agent -> [route] -> Agricultural Calculator -> Research Agent -> Strategic Synthesizer -> END
-                                    -> (greeting / slot-ask)                                              -> END
+Flow (no image) — Calculator ∥ Research run concurrently, then fan in:
+  START -> Liaison -> [route] ┬-> Agricultural Calculator ┐
+                              └-> Research Agent ──────────┴-> Strategic Synthesizer -> END
+                     -> (greeting / slot-ask) -------------------------------------------> END
 
 Flow (with image):
-  START -> Liaison Agent -> Vision Agent -> Agricultural Calculator -> Research Agent -> Strategic Synthesizer -> END
+  START -> Liaison -> Vision ┬-> Agricultural Calculator ┐
+                            └-> Research Agent ──────────┴-> Strategic Synthesizer -> END
 
-Phase 4.3 additions:
+Performance design:
+  - Calculator (tools) and Research (RAG) have NO mutual dependency, so they are
+    a LangGraph fan-out that executes in parallel and fans in to the Synthesizer.
+  - Blocking work (RAG search, tool calls, tips) is offloaded via asyncio.to_thread
+    (and asyncio.gather inside the Calculator) so the parallel branches truly
+    overlap instead of pinning the event loop.
+  - The Synthesizer is isolated as a generation-only SynthesizerAgent
+    (app/orchestration/synthesizer_agent.py) — forbidden from tools / RAG / fetch.
+
+Other features:
   - Syrian dialect map for query expansion (dialect_map.json)
-  - Location-based RAG result prioritisation
-  - Source citations: "حسب دليل [اسم الكتاب]، ص.N"
-  - Visualization payload: SVG map or bar chart attached to ChatResponse
+  - Location-based RAG result prioritisation; source citations
+  - Visualization payload (map / bar chart) attached to ChatResponse
 """
 
 from __future__ import annotations
@@ -27,25 +37,35 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 
 from app.core.config import get_settings
+from app.core.llm_health import mark_openai_unavailable as _mark_openai_unavailable  # re-export for main.py
 from app.core.logging import get_logger
 from app.core.mock_intelligence import get_contextual_tips, get_mock_vision_description
 from app.core.rag_engine import search_knowledge_base
 from app.core.state import GraphState
+from app.orchestration import get_orchestrator, get_synthesizer_agent
+from app.orchestration.schemas import (
+    CalculatorInput,
+    CalculatorOutput,
+    LiaisonInput,
+    LiaisonOutput,
+    ResearchInput,
+    ResearchOutput,
+    ResearchSource,
+    VisionInput,
+    VisionOutput,
+    coerce,
+)
 
 log = get_logger("agro_syria.graph")
 
+# Deterministic state-machine router/validator — single source of truth for all
+# pipeline transitions (replaces ad-hoc, prompt-driven branching).
+orchestrator = get_orchestrator()
+
+# Generation-only terminal node, decoupled from data fetching (no tools / RAG).
+synthesizer_agent = get_synthesizer_agent()
+
 _DIALECT_MAP_PATH = Path(__file__).resolve().parent / "dialect_map.json"
-
-# Fail-fast flag — set to False after the first 429 / quota-exceeded response
-# so subsequent requests skip the OpenAI call entirely instead of waiting for
-# the timeout to fire.
-_openai_available: bool = True
-
-
-def _mark_openai_unavailable() -> None:
-    global _openai_available
-    _openai_available = False
-    log.warning("OpenAI marked unavailable — switching to local synthesis for all requests")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -76,170 +96,6 @@ def _expand_query(query: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Syrian governorate registry — for map visualization
-# ─────────────────────────────────────────────────────────────────────────────
-
-_GOVERNORATES: dict[str, dict[str, Any]] = {
-    "دمشق":      {"lat": 33.51, "lng": 36.29, "crops": ["خضروات", "فاكهة"]},
-    "ريف دمشق": {"lat": 33.60, "lng": 36.50, "crops": ["خضروات", "فاكهة", "قمح"]},
-    "حلب":       {"lat": 36.20, "lng": 37.16, "crops": ["قمح", "قطن", "زيتون"]},
-    "حمص":       {"lat": 34.73, "lng": 36.72, "crops": ["قمح", "شمندر", "زيتون"]},
-    "حماة":      {"lat": 35.13, "lng": 36.75, "crops": ["قمح", "قطن"]},
-    "اللاذقية":  {"lat": 35.52, "lng": 35.79, "crops": ["زيتون", "حمضيات", "تبغ"]},
-    "طرطوس":     {"lat": 34.89, "lng": 35.89, "crops": ["زيتون", "حمضيات"]},
-    "إدلب":      {"lat": 35.93, "lng": 36.63, "crops": ["زيتون", "قمح"]},
-    "الرقة":     {"lat": 35.95, "lng": 39.01, "crops": ["قمح", "قطن"]},
-    "دير الزور": {"lat": 35.34, "lng": 40.14, "crops": ["قمح", "قطن"]},
-    "الحسكة":    {"lat": 36.50, "lng": 40.74, "crops": ["قمح", "قطن", "شمندر"]},
-    "السويداء":  {"lat": 32.71, "lng": 36.57, "crops": ["عنب", "كرز", "مشمش"]},
-    "درعا":      {"lat": 32.62, "lng": 36.10, "crops": ["قمح", "خضروات"]},
-    "القنيطرة":  {"lat": 33.13, "lng": 35.82, "crops": ["قمح", "فاكهة"]},
-}
-
-# Disease spread intensity modifiers by region type
-_COASTAL     = {"اللاذقية", "طرطوس"}         # higher fungal risk
-_DRY_NORTH   = {"حلب", "إدلب", "حماة"}       # higher insect/aphid risk
-_NORTHEAST   = {"الرقة", "دير الزور", "الحسكة"}  # rust / cereal disease risk
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Visualization builders
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _disease_spread_map(crop: str, disease_text: str, user_region: str | None) -> dict[str, Any]:
-    """Build a map visualization showing disease spread risk across Syria."""
-    is_fungal = any(k in disease_text for k in ["بياض", "صدأ", "عفن", "فطر", "Rust", "Blight"])
-    is_insect = any(k in disease_text for k in ["حشرة", "من", "يرقة", "دودة", "Aphid"])
-
-    points = []
-    for gov_name, geo in _GOVERNORATES.items():
-        crop_match = any(c in geo["crops"] for c in [crop, "عام"]) if crop else True
-        base = 0.55 if crop_match else 0.30
-
-        if is_fungal and gov_name in _COASTAL:
-            risk = base + 0.30
-        elif is_fungal and gov_name in _DRY_NORTH:
-            risk = base + 0.05
-        elif is_insect and gov_name in _DRY_NORTH:
-            risk = base + 0.25
-        elif is_insect and gov_name in _NORTHEAST:
-            risk = base + 0.15
-        else:
-            # deterministic pseudo-random variation per region
-            risk = base + (abs(hash(gov_name + (crop or ""))) % 25) / 100
-
-        # User's own region gets highest visible intensity
-        if user_region and (user_region in gov_name or gov_name in user_region):
-            risk = min(risk + 0.20, 1.0)
-
-        risk = round(min(max(risk, 0.10), 1.0), 2)
-        points.append({
-            "lat": geo["lat"],
-            "lng": geo["lng"],
-            "label_ar": gov_name,
-            "intensity": risk,
-        })
-
-    return {
-        "type": "map",
-        "display_type": "map",
-        "title_ar": f"خريطة انتشار الإصابة — {crop or 'المحصول'}",
-        "points": points,
-        "location_data": {
-            "center": {"lat": 34.8, "lng": 38.9},
-            "country": "سوريا",
-            "governorates": list(_GOVERNORATES.keys()),
-        },
-        "zoom_level": 6,
-        "source_ar": "تقدير أولي بناءً على البيانات الزراعية والمناخية السورية",
-    }
-
-
-def _irrigation_bar_chart(tool_result: dict[str, Any]) -> dict[str, Any]:
-    """Build a bar chart comparing water needs across growth stages."""
-    crop     = tool_result.get("crop", "المحصول")
-    daily    = tool_result.get("daily_litres_total", 0)
-    area     = tool_result.get("area_dunums", 1) or 1
-    age      = tool_result.get("crop_age_days", 60)
-
-    per_dunum = daily / area
-
-    # Recover base (peak) litres per dunum from stage factor
-    if age <= 30:
-        factor = 0.55
-    elif age <= 90:
-        factor = 1.0
-    else:
-        factor = 0.75
-    base = per_dunum / factor if factor else per_dunum
-
-    # Determine which bar is the "current" stage for color highlight
-    current_stage = (
-        "مرحلة الإنبات"    if age <= 30
-        else "النمو الرئيسي" if age <= 90
-        else "مرحلة النضج"
-    )
-
-    def _color(label: str) -> str:
-        return "amber" if label == current_stage else "emerald"
-
-    bars = [
-        {"label_ar": "مرحلة الإنبات",  "value": round(base * 0.55), "color": _color("مرحلة الإنبات")},
-        {"label_ar": "النمو الرئيسي",   "value": round(base * 1.00), "color": _color("النمو الرئيسي")},
-        {"label_ar": "مرحلة النضج",     "value": round(base * 0.75), "color": _color("مرحلة النضج")},
-    ]
-
-    return {
-        "type": "bar_chart",
-        "title_ar": f"متطلبات الري — {crop} (لتر/دونم/يوم)",
-        "bars": bars,
-        "source_ar": "معايير الري الزراعي السورية",
-    }
-
-
-def _build_visualization(ctx: dict[str, Any]) -> dict[str, Any] | None:
-    """Decide whether to generate a visualization and build its payload."""
-    intent           = ctx.get("intent", "general")
-    tool_result      = ctx.get("tool_result")
-    vision_desc      = ctx.get("vision_description", "")
-    slots            = ctx.get("slots", {})
-    user_region      = slots.get("region")
-    crop             = slots.get("crop", "")
-    research_context = ctx.get("research_context", "")
-    raw_query        = ctx.get("raw_query", "")
-
-    # ── Bar chart for irrigation results ──────────────────────────────
-    if intent == "irrigation" and tool_result:
-        return _irrigation_bar_chart(tool_result)
-
-    # ── Explicit map/chart request — always produce a Syria map ───────
-    if intent == "visual":
-        disease_hint = raw_query + " " + research_context[:300]
-        return _disease_spread_map(crop, disease_hint, user_region)
-
-    # ── Map for disease / vision findings ─────────────────────────────
-    disease_keywords = ["بقع", "تعفن", "ذبول", "حشرة", "يرقة", "صفرار", "عفن",
-                        "بياض", "صدأ", "نخر", "جرب", "حرق", "تبقع", "Rust"]
-    disease_detected = any(kw in vision_desc for kw in disease_keywords)
-
-    if disease_detected:
-        return _disease_spread_map(crop, vision_desc, user_region)
-
-    # ── Map for disease keywords found anywhere in the query/research ──
-    all_text = raw_query + " " + research_context
-    if any(kw in all_text for kw in disease_keywords):
-        return _disease_spread_map(crop, all_text[:400], user_region)
-
-    # ── Map when user asks about a specific region + agricultural issue ─
-    spatial_keywords = ["محافظة", "منطقة", "قرية", "أرض", "حقل", "بستان",
-                        "مزرعة", "ينتشر", "وباء", "إصابة"]
-    if user_region and any(kw in (raw_query + research_context) for kw in spatial_keywords):
-        return _disease_spread_map(crop, research_context[:200], user_region)
-
-    return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Greeting detection
 # ─────────────────────────────────────────────────────────────────────────────
 _GREETING_TOKENS = frozenset([
@@ -264,7 +120,7 @@ _INTENT_MAP: list[tuple[list[str], str]] = [
     (["خريطة", "مخطط بياني", "أرني خريطة", "اعطيني خريطة", "وين الإصابة",
       "توزيع المحاصيل", "انتشار المرض", "map", "chart", "أين ينتشر",
       "خريطة سوريا", "محافظات سوريا"], "visual"),
-    (["ري ", " ري", "مياه", "سقاية", "رشاش", "تنقيط", "احسب الري", "كمية مياه"], "irrigation"),
+    (["ري ", " ري", "روي", "سقي", "مياه", "سقاية", "رشاش", "تنقيط", "احسب الري", "كمية مياه"], "irrigation"),
     (["تربة", "ph", "تحليل تربة", "خاك", "سماد", "تسميد", "فوسفور", "نيتروجين", "بوتاسيوم"], "soil"),
     (["سعر", "أسعار", "سوق", "بيع", "تسويق", "أرباح", "ربح"], "market"),
     (["موعد زراعة", "بذر", "حصاد", "تقويم", "متى أزرع", "متى أحصد"], "calendar"),
@@ -405,14 +261,9 @@ def _build_slot_ask(intent: str, slots: dict[str, Any]) -> str | None:
 # ─────────────────────────────────────────────────────────────────────────────
 # System prompts
 # ─────────────────────────────────────────────────────────────────────────────
-_SYSTEM_PROMPT = (
-    "أنت خبير زراعي سوري ذكي جداً، اسمك (أغرو-سيريا). "
-    "تتحدث باللهجة السورية البيضاء (المريحة والقريبة للقلب). "
-    "إذا حيّاك المستخدم، رد عليه بترحيب سوري دافئ دون الدخول في تفاصيل تقنية إلا إذا سأل. "
-    "إذا سأل عن الزراعة، استخدم خبرتك لتقديم نصائح دقيقة ومختصرة باللهجة السورية. "
-    "عند الاستشهاد بمصادر زراعية استخدم الصيغة: «حسب دليل [اسم الكتاب]...». "
-    "دائماً اختم ردك بجملة تشجيعية قصيرة."
-)
+# NOTE: the synthesizer's system prompt lives with the SynthesizerAgent in
+# app/orchestration/synthesizer_agent.py (generation is decoupled from this
+# data-fetching graph module).
 
 _VISION_SYSTEM_PROMPT = (
     "أنت خبير المعاينة البصرية في منصة أغرو-سيريا. "
@@ -430,78 +281,66 @@ async def liaison_node(state: GraphState) -> dict[str, Any]:
         (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "",
     )
     ctx = state.get("agricultural_context", {})
-    has_image = bool(ctx.get("image_base64"))
 
-    log.info("وكيل التواصل — image=%s msg=%.60s", has_image, user_msg)
+    # Rigorous input validation — wrong types raise before any work happens.
+    inp = LiaisonInput(raw_query=str(user_msg), image_base64=ctx.get("image_base64"))
+    has_image = bool(inp.image_base64)
+
+    log.info("وكيل التواصل — image=%s msg=%.60s", has_image, inp.raw_query)
 
     if has_image:
-        return {
-            "messages": [AIMessage(content="وصلتني صورتك، عم بحللها مع الخبراء...", name="liaison")],
-            "sender": "liaison",
-            "agricultural_context": {
-                "raw_query": user_msg or "ما تشوف في هالصورة؟",
-                "is_greeting": False,
-                "slot_ask": False,
-                "has_image": True,
-                "intent": "vision",
-            },
-        }
-
-    is_greeting = _is_greeting(user_msg)
-    if is_greeting:
-        reply = (
-            "أهلاً وسهلاً! 🌿 أنا أغرو-سيريا، خبيرك الزراعي الذكي. "
-            "يسعدني أكون رفيقك في كل ما يخص أرضك وزراعتك. "
-            "شو بدك تعرف اليوم؟"
+        out = LiaisonOutput(
+            raw_query=inp.raw_query or "ما تشوف في هالصورة؟",
+            intent="vision",
+            has_image=True,
+            reply_ar="وصلتني صورتك، عم بحللها مع الخبراء...",
         )
-        return {
-            "messages": [AIMessage(content=reply, name="liaison")],
-            "sender": "liaison",
-            "agricultural_context": {"raw_query": user_msg, "is_greeting": True},
-        }
+        return _liaison_update(out)
 
-    intent = _detect_intent(user_msg)
-    slots = _extract_slots(intent, user_msg)
+    if _is_greeting(inp.raw_query):
+        out = LiaisonOutput(
+            raw_query=inp.raw_query,
+            intent="general",
+            greeting=True,
+            reply_ar=(
+                "أهلاً وسهلاً! 🌿 أنا أغرو-سيريا، خبيرك الزراعي الذكي. "
+                "يسعدني أكون رفيقك في كل ما يخص أرضك وزراعتك. "
+                "شو بدك تعرف اليوم؟"
+            ),
+        )
+        return _liaison_update(out)
+
+    intent = _detect_intent(inp.raw_query)
+    slots = _extract_slots(intent, inp.raw_query)
     slot_ask = _build_slot_ask(intent, slots) if intent != "general" else None
 
     if slot_ask:
         log.info("slot-filling ask — intent=%s", intent)
-        return {
-            "messages": [AIMessage(content=slot_ask, name="liaison")],
-            "sender": "liaison",
-            "agricultural_context": {
-                "raw_query": user_msg,
-                "is_greeting": False,
-                "slot_ask": True,
-                "intent": intent,
-                "slots": slots,
-            },
-        }
+        out = LiaisonOutput(
+            raw_query=inp.raw_query,
+            intent=intent,
+            slots=slots,
+            missing_slots=True,
+            reply_ar=slot_ask,
+        )
+        return _liaison_update(out)
 
+    out = LiaisonOutput(
+        raw_query=inp.raw_query,
+        intent=intent,
+        slots=slots,
+        reply_ar="عم بجهزلك تقرير من فريق الخبراء...",
+    )
+    return _liaison_update(out)
+
+
+def _liaison_update(out: LiaisonOutput) -> dict[str, Any]:
+    """Build the Liaison state update from its validated output model."""
     return {
-        "messages": [AIMessage(content="عم بجهزلك تقرير من فريق الخبراء...", name="liaison")],
+        "messages": [AIMessage(content=out.reply_ar, name="liaison")],
         "sender": "liaison",
-        "agricultural_context": {
-            "raw_query": user_msg,
-            "is_greeting": False,
-            "slot_ask": False,
-            "has_image": False,
-            "intent": intent,
-            "slots": slots,
-        },
+        "agricultural_context": {"liaison_output": out},
     }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Edge router (after liaison)
-# ─────────────────────────────────────────────────────────────────────────────
-def _route_after_liaison(state: GraphState) -> str:
-    ctx = state.get("agricultural_context", {})
-    if ctx.get("is_greeting") or ctx.get("slot_ask"):
-        return END
-    if ctx.get("has_image"):
-        return "Vision Agent"
-    return "Agricultural Calculator"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -509,48 +348,60 @@ def _route_after_liaison(state: GraphState) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 async def vision_node(state: GraphState) -> dict[str, Any]:
     ctx = state.get("agricultural_context", {})
-    image_b64: str = ctx.get("image_base64", "")
-    query: str = ctx.get("raw_query", "ما تشوف في هالصورة؟")
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+
+    # Rigorous input validation for the vision contract.
+    inp = VisionInput(
+        image_base64=ctx.get("image_base64") or "",
+        raw_query=liaison.raw_query or "ما تشوف في هالصورة؟",
+    )
     settings = get_settings()
 
-    log.info("خبير المعاينة البصرية — analyzing image (%d bytes b64)", len(image_b64))
+    log.info("خبير المعاينة البصرية — analyzing image (%d bytes b64)", len(inp.image_base64))
 
-    description = ""
-    if settings.openai_api_key and image_b64:
+    findings: VisionOutput | None = None
+    if settings.llm_api_key and inp.image_base64:
         try:
-            description = await asyncio.wait_for(
-                _call_vision_openai(image_b64, query, settings),
+            findings = await asyncio.wait_for(
+                _call_vision_llm(inp.image_base64, inp.raw_query, settings),
                 timeout=float(settings.openai_timeout),
             )
         except Exception as exc:
-            log.warning("Vision OpenAI call failed (%s) — using mock", type(exc).__name__)
-            description = get_mock_vision_description()
-    else:
-        description = get_mock_vision_description()
+            log.warning("Vision LLM call failed (%s) — using mock", type(exc).__name__)
+
+    if findings is None:
+        findings = VisionOutput(description_ar=get_mock_vision_description())
 
     return {
-        "messages": [AIMessage(content=description, name="vision")],
+        "messages": [AIMessage(content=findings.description_ar, name="vision")],
         "sender": "vision_agent",
-        "agricultural_context": {
-            "vision_description": description,
-        },
+        "agricultural_context": {"vision_output": findings},
     }
 
 
-async def _call_vision_openai(image_b64: str, query: str, settings: Any) -> str:
+async def _call_vision_llm(image_b64: str, query: str, settings: Any) -> VisionOutput:
+    """Vision LLM call constrained to the :class:`VisionOutput` schema.
+
+    Provider-agnostic via the OpenAI-compatible interface (Gemini's endpoint or
+    native OpenAI). Uses LangChain's ``with_structured_output`` so the model must
+    return an object matching the contract (description + symptoms + severity) —
+    no free-text parsing, no unstructured string crossing the node boundary.
+    """
     from langchain_openai import ChatOpenAI
 
     raw_b64 = image_b64.split(",", 1)[1] if "," in image_b64 else image_b64
 
     llm = ChatOpenAI(
-        api_key=settings.openai_api_key,
-        model=settings.openai_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,   # Gemini OpenAI-compatible endpoint, or None for OpenAI
+        model=settings.llm_model,
         temperature=0.3,
-        max_tokens=400,
+        max_tokens=500,
         timeout=settings.openai_timeout,
         max_retries=0,
-    )
-    response = await llm.ainvoke([
+    ).with_structured_output(VisionOutput)
+
+    result = await llm.ainvoke([
         {"role": "system", "content": _VISION_SYSTEM_PROMPT},
         {
             "role": "user",
@@ -566,7 +417,8 @@ async def _call_vision_openai(image_b64: str, query: str, settings: Any) -> str:
             ],
         },
     ])
-    return str(response.content)
+    # ``with_structured_output(VisionOutput)`` returns a VisionOutput instance.
+    return coerce(VisionOutput, result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -574,14 +426,59 @@ async def _call_vision_openai(image_b64: str, query: str, settings: Any) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 async def field_agent_node(state: GraphState) -> dict[str, Any]:
     ctx = state.get("agricultural_context", {})
-    intent: str = ctx.get("intent", "general")
-    slots: dict = ctx.get("slots", {})
-    query: str = ctx.get("raw_query", "")
-    vision_description: str = ctx.get("vision_description", "")
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    vision = ctx.get("vision_output")
+    vision_description = coerce(VisionOutput, vision).description_ar if vision else ""
 
-    log.info("عميل الحقل — intent=%s has_vision=%s", intent, bool(vision_description))
+    # Rigorous input validation for the calculator contract.
+    inp = CalculatorInput(
+        intent=liaison.intent,
+        raw_query=liaison.raw_query,
+        slots=liaison.slots,
+        vision_description=vision_description,
+    )
 
-    tool_result: dict | None = None
+    log.info("عميل الحقل — intent=%s has_vision=%s", inp.intent, bool(vision_description))
+
+    # The tool computation and the contextual-tips lookup are independent, so
+    # run them concurrently — each offloaded to a worker thread so this node
+    # never blocks the event loop while it runs in parallel with the Research
+    # node (LangGraph fan-out).
+    combined_query = f"{inp.raw_query} {vision_description}".strip()
+    (tool_result, tool_summary), tips_text = await asyncio.gather(
+        asyncio.to_thread(_run_tool, inp.intent, inp.slots),
+        asyncio.to_thread(_compute_tips, combined_query),
+    )
+
+    field_content = tool_summary or (
+        f"👁 **وصف بصري مستلم**\n{vision_description}" if vision_description else "جاري التحليل..."
+    )
+
+    out = CalculatorOutput(
+        tool_result=tool_result,
+        tool_summary=tool_summary,
+        contextual_tips=tips_text,
+    )
+    return {
+        "messages": [AIMessage(content=field_content, name="field")],
+        "sender": "field_agent",
+        "agricultural_context": {"calculator_output": out},
+    }
+
+
+def _compute_tips(combined_query: str) -> str:
+    """Keyword-based contextual tips (blocking → offloaded to a thread)."""
+    tips = get_contextual_tips(combined_query)
+    return "\n\n".join(tips[:2]) if tips else ""
+
+
+def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """Invoke the single tool matching *intent* (blocking → offloaded to a thread).
+
+    Returns ``(tool_result, tool_summary)``. Only one tool runs per request; the
+    branches are mutually exclusive by intent + slot availability.
+    """
+    tool_result: dict[str, Any] | None = None
     tool_summary = ""
 
     if intent == "irrigation" and slots.get("crop") and slots.get("area_dunums"):
@@ -653,23 +550,7 @@ async def field_agent_node(state: GraphState) -> dict[str, Any]:
             f"{notes}"
         )
 
-    combined_query = f"{query} {vision_description}".strip()
-    tips = get_contextual_tips(combined_query)
-    tips_text = "\n\n".join(tips[:2]) if tips else ""
-
-    field_content = tool_summary or (
-        f"👁 **وصف بصري مستلم**\n{vision_description}" if vision_description else "جاري التحليل..."
-    )
-
-    return {
-        "messages": [AIMessage(content=field_content, name="field")],
-        "sender": "field_agent",
-        "agricultural_context": {
-            "tool_result": tool_result,
-            "tool_summary": tool_summary,
-            "contextual_tips": tips_text,
-        },
-    }
+    return tool_result, tool_summary
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -677,9 +558,18 @@ async def field_agent_node(state: GraphState) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────────
 async def research_node(state: GraphState) -> dict[str, Any]:
     ctx = state.get("agricultural_context", {})
-    query: str = ctx.get("raw_query", "")
-    vision_description: str = ctx.get("vision_description", "")
-    slots: dict = ctx.get("slots", {})
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    vision = ctx.get("vision_output")
+    vision_description = coerce(VisionOutput, vision).description_ar if vision else ""
+
+    # Rigorous input validation for the research contract.
+    inp = ResearchInput(
+        raw_query=liaison.raw_query,
+        slots=liaison.slots,
+        vision_description=vision_description,
+    )
+    query = inp.raw_query
+    slots = inp.slots
     user_region: str | None = slots.get("region")
     from_vision = bool(vision_description)
 
@@ -695,7 +585,10 @@ async def research_node(state: GraphState) -> dict[str, Any]:
 
     log.info("وكيل البحث — vision=%s region=%s query=%.80s", from_vision, user_region, expanded_query)
 
-    results = search_knowledge_base(expanded_query, k=4)  # fetch 4; may discard after location boost
+    # RAG retrieval is CPU/IO-blocking — offload to a worker thread so this node
+    # truly overlaps the Calculator node (LangGraph fan-out) instead of pinning
+    # the event loop.
+    results = await asyncio.to_thread(search_knowledge_base, expanded_query, 4)  # may discard after boost
 
     # ── Location-based prioritisation ────────────────────────────────
     if user_region and results:
@@ -708,7 +601,7 @@ async def research_node(state: GraphState) -> dict[str, Any]:
     results = results[:3]  # keep top-3 after re-ranking
 
     # ── Build citation metadata ───────────────────────────────────────
-    research_sources: list[dict[str, Any]] = []
+    research_sources: list[ResearchSource] = []
     if results:
         passages = "\n\n---\n\n".join(
             f"[{r.get('book_title', r['source'])} | ص.{r.get('page_num', '?')} | score {r['score']:.2f}]\n{r['text']}"
@@ -718,11 +611,11 @@ async def research_node(state: GraphState) -> dict[str, Any]:
         log.info("RAG retrieved %d chunks (top score=%.3f)", len(results), top_score)
 
         research_sources = [
-            {
-                "book_title": r.get("book_title", r["source"]),
-                "page_num": r.get("page_num"),
-                "source": r["source"],
-            }
+            ResearchSource(
+                book_title=r.get("book_title", r["source"]),
+                page_num=r.get("page_num"),
+                source=r["source"],
+            )
             for r in results
         ]
 
@@ -738,206 +631,16 @@ async def research_node(state: GraphState) -> dict[str, Any]:
         status_msg = "لم أجد معلومات مباشرة في المكتبة — سأعتمد على خبرتي الزراعية."
         log.info("RAG returned no results")
 
+    out = ResearchOutput(
+        research_context=passages,
+        research_sources=research_sources,
+        vision_rag_bridge=from_vision,
+    )
     return {
         "messages": [AIMessage(content=status_msg, name="research")],
         "sender": "research_agent",
-        "agricultural_context": {
-            "research_context": passages,
-            "research_sources": research_sources,
-            "vision_rag_bridge": from_vision,
-        },
+        "agricultural_context": {"research_output": out},
     }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Node: Strategic Synthesizer  (final reply with all context + visualization)
-# ─────────────────────────────────────────────────────────────────────────────
-async def synthesizer_node(state: GraphState) -> dict[str, Any]:
-    ctx = state.get("agricultural_context", {})
-    query: str = ctx.get("raw_query", "")
-    tool_summary: str = ctx.get("tool_summary", "")
-    tips_text: str = ctx.get("contextual_tips", "")
-    vision_description: str = ctx.get("vision_description", "")
-    research_context: str = ctx.get("research_context", "")
-    research_sources: list = ctx.get("research_sources", [])
-    vision_rag_bridge: bool = ctx.get("vision_rag_bridge", False)
-
-    log.info("المُجمِّع — vision_rag=%s %.60s", vision_rag_bridge, query)
-
-    settings = get_settings()
-
-    if settings.openai_api_key and _openai_available:
-        try:
-            import functools
-            loop = asyncio.get_event_loop()
-            # Run in thread executor — the sync openai client uses httpx blocking
-            # I/O which cannot block the asyncio event loop from a thread, so
-            # asyncio.wait_for can always cancel on timeout.
-            reply = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    functools.partial(
-                        _call_openai_synthesize_sync,
-                        query, tool_summary, tips_text, vision_description,
-                        research_context, research_sources, vision_rag_bridge, settings,
-                    ),
-                ),
-                timeout=float(settings.openai_timeout),
-            )
-        except Exception as exc:
-            exc_str = str(exc)
-            if any(x in exc_str for x in ["429", "quota", "insufficient_quota", "RateLimitError"]):
-                _mark_openai_unavailable()
-            log.warning("OpenAI synthesizer failed (%s) — local fallback", type(exc).__name__)
-            reply = _local_synthesis(
-                tool_summary, tips_text, vision_description, research_context,
-                research_sources, vision_rag_bridge, query
-            )
-    else:
-        reply = _local_synthesis(
-            tool_summary, tips_text, vision_description, research_context,
-            research_sources, vision_rag_bridge, query
-        )
-
-    # ── Build visualization payload ───────────────────────────────────
-    viz = _build_visualization(ctx)
-
-    return {
-        "messages": [AIMessage(content=reply, name="synthesizer")],
-        "sender": "synthesizer",
-        "agricultural_context": {
-            "synthesizer_done": True,
-            "visualization": viz,
-        },
-    }
-
-
-def _format_citation(sources: list[dict[str, Any]]) -> str:
-    """Format the primary source into Arabic citation string."""
-    if not sources:
-        return ""
-    top = sources[0]
-    book = top.get("book_title") or top.get("source", "")
-    page = top.get("page_num")
-    if not book:
-        return ""
-    page_str = f"، ص.{page}" if page and page > 1 else ""
-    return f"حسب دليل {book}{page_str}"
-
-
-def _local_synthesis(
-    tool_summary: str,
-    tips_text: str,
-    vision_description: str,
-    research_context: str,
-    research_sources: list,
-    vision_rag_bridge: bool,
-    query: str,
-) -> str:
-    parts: list[str] = []
-
-    if vision_description:
-        parts.append(f"**👁 ما شفته بالصورة:**\n{vision_description}")
-
-    if tool_summary:
-        parts.append(tool_summary)
-
-    if research_context:
-        citation = _format_citation(research_sources)
-        header = (
-            "📚 **من الكتب الزراعية — مرتبطة بما رصده الخبير البصري**"
-            if vision_rag_bridge
-            else f"📚 **{citation}**" if citation else "📚 **من المكتبة الزراعية**"
-        )
-        excerpt = research_context[:800] + ("..." if len(research_context) > 800 else "")
-        parts.append(f"---\n{header}\n{excerpt}")
-    elif tips_text:
-        parts.append("---\n💡 **معلومات إضافية**\n" + tips_text)
-
-    if not parts:
-        parts.append(
-            "بناءً على المعطيات الحالية، هاي توصيتي:\n\n"
-            "١. **وضع التربة**: تأكد من رطوبة ٦٠–٧٠٪ قبل الزراعة.\n"
-            "٢. **الموسم الحالي**: راجع التقويم الزراعي لمنطقتك.\n"
-            "٣. **الأسعار**: تابع نشرة وزارة الزراعة أسبوعياً.\n\n"
-            "للمزيد من الدقة، أخبرني بنوع المحصول والمنطقة."
-        )
-
-    parts.append("\n🌱 وفقك الله في موسمك!")
-    return "\n\n".join(parts)
-
-
-def _call_openai_synthesize_sync(
-    query: str,
-    tool_summary: str,
-    tips_text: str,
-    vision_description: str,
-    research_context: str,
-    research_sources: list,
-    vision_rag_bridge: bool,
-    settings: Any,
-) -> str:
-    """Synchronous OpenAI call — always runs in thread pool via run_in_executor.
-
-    Using the raw openai SDK (not LangChain) ensures that timeouts and
-    cancellation from asyncio.wait_for work correctly: the thread blocks,
-    but the event loop stays free.
-    """
-    import openai
-
-    citation = _format_citation(research_sources)
-
-    context_block = ""
-    if vision_description:
-        context_block += f"\n\n[وصف بصري من خبير الرؤية]\n{vision_description}"
-    if tool_summary:
-        context_block += f"\n\n[بيانات الأداة]\n{tool_summary}"
-    if research_context:
-        excerpt = research_context[:1200] + ("..." if len(research_context) > 1200 else "")
-        label = (
-            f"[معلومات من الكتب الزراعية — {citation} — تم البحث بناءً على وصف الصورة]"
-            if vision_rag_bridge and citation
-            else f"[معلومات من المكتبة الزراعية السورية — {citation}]" if citation
-            else "[معلومات من المكتبة الزراعية السورية]"
-        )
-        context_block += f"\n\n{label}\n{excerpt}"
-    elif tips_text:
-        context_block += f"\n\n[معلومات زراعية إضافية]\n{tips_text}"
-
-    vision_instruction = (
-        "الوصف البصري ومعلومات الكتب مترابطان — استخدمهما معاً لتشخيص دقيق. "
-        if vision_rag_bridge
-        else ""
-    )
-    citation_instruction = (
-        f"استشهد بالمصدر في ردك بالصيغة: «{citation}». "
-        if citation
-        else ""
-    )
-    user_content = (
-        f"سؤال المزارع: {query}"
-        f"{context_block}\n\n"
-        f"{vision_instruction}"
-        f"{citation_instruction}"
-        "بناءً على البيانات أعلاه، اكتب رداً متكاملاً باللهجة السورية. "
-        "إذا كان هناك وصف بصري، ابدأ بالتشخيص المبدئي ثم أضف التوصيات. "
-        "الرد يجب أن يكون واضحاً ومركزاً — لا تتجاوز ٢٠٠ كلمة."
-    )
-
-    client = openai.OpenAI(
-        api_key=settings.openai_api_key,
-        max_retries=0,
-        timeout=float(settings.openai_timeout),
-    )
-    response = client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0.65,
-    )
-    return response.choices[0].message.content or ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -947,29 +650,42 @@ def _call_openai_synthesize_sync(
 def get_compiled_graph():
     builder: StateGraph = StateGraph(GraphState)
 
-    builder.add_node("Liaison Agent",           liaison_node)
-    builder.add_node("Vision Agent",            vision_node)
-    builder.add_node("Agricultural Calculator", field_agent_node)
-    builder.add_node("Research Agent",          research_node)
-    builder.add_node("Strategic Synthesizer",   synthesizer_node)
+    # Node implementations, keyed by the orchestrator's canonical node ids so
+    # the registry and the routing table can never drift apart. The Synthesizer
+    # is the decoupled, generation-only SynthesizerAgent (no tools / RAG).
+    node_impls = {
+        "Liaison Agent":           liaison_node,
+        "Vision Agent":            vision_node,
+        "Agricultural Calculator": field_agent_node,
+        "Research Agent":          research_node,
+        "Strategic Synthesizer":   synthesizer_agent.node,
+    }
 
-    builder.add_edge(START, "Liaison Agent")
-    builder.add_conditional_edges(
-        "Liaison Agent",
-        _route_after_liaison,
-        {
-            "Vision Agent":             "Vision Agent",
-            "Agricultural Calculator":  "Agricultural Calculator",
-            END:                        END,
-        },
-    )
-    builder.add_edge("Vision Agent",            "Agricultural Calculator")
-    builder.add_edge("Agricultural Calculator", "Research Agent")
-    builder.add_edge("Research Agent",          "Strategic Synthesizer")
-    builder.add_edge("Strategic Synthesizer",   END)
+    # Wrap every node in the orchestrator's schema guard: its output is
+    # validated against the agent's Pydantic contract at the handoff boundary,
+    # with retry + safe fallback on malformed output.
+    for node in orchestrator.PIPELINE:
+        builder.add_node(node, orchestrator.guard(node, node_impls[node]))
+
+    liaison = orchestrator.PIPELINE[0]
+    vision = "Vision Agent"
+
+    # START -> Liaison. The only runtime decision is after Liaison: stop (END),
+    # go to Vision first (image), or fan out to the parallel data stage.
+    builder.add_edge(START, liaison)
+    builder.add_conditional_edges(liaison, orchestrator.route, orchestrator.path_map(liaison))
+
+    # Vision fans out to the parallel data stage; the two independent data nodes
+    # (Calculator = tools, Research = RAG) run concurrently, then fan in to the
+    # generation-only Synthesizer (the join). All static — no runtime decision.
+    for data_node in orchestrator.PARALLEL_STAGE:
+        builder.add_edge(vision, data_node)            # image flow: Vision -> {Calc, Research}
+        builder.add_edge(data_node, orchestrator.JOIN)  # fan-in -> Synthesizer
+    builder.add_edge(orchestrator.JOIN, END)
 
     compiled = builder.compile()
     log.info(
-        "LangGraph compiled — Liaison -> [Vision?] -> Calculator -> Research -> Synthesizer | END"
+        "LangGraph compiled — Liaison -> [Vision?] -> {%s} (parallel) -> %s | END",
+        ", ".join(orchestrator.PARALLEL_STAGE), orchestrator.JOIN,
     )
     return compiled

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Sidebar } from "./Sidebar";
+import { MobileNav } from "./MobileNav";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceLayoutProps {
@@ -21,7 +22,7 @@ export function WorkspaceLayout({
     <div className="flex h-screen w-full overflow-hidden bg-forest-mesh">
       {/*
         RTL layout — Sidebar on the RIGHT (Arabic nav position).
-        Single sidebar; AgentStatusBar removed to maximise content width.
+        Desktop: persistent Sidebar. Mobile: bottom nav + drawer (MobileNav).
       */}
       <Sidebar activeId={activeView} onNavigate={onNavigate} />
 
@@ -30,18 +31,21 @@ export function WorkspaceLayout({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.35 }}
         className={cn(
-          "flex-1 flex flex-col min-w-0",
+          "flex-1 flex flex-col min-w-0 overflow-x-hidden",
           className
         )}
       >
         {/* Hairline accent */}
         <div className="h-[1px] w-full bg-gradient-to-l from-transparent via-emerald-500/25 to-transparent flex-shrink-0" />
 
-        {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Scrollable content — extra bottom space on mobile to clear the bottom nav */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-0">
           {children}
         </div>
       </motion.main>
+
+      {/* Mobile-only navigation */}
+      <MobileNav />
     </div>
   );
 }

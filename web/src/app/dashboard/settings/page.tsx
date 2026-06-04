@@ -153,7 +153,7 @@ function SaveToast({ show }: { show: boolean }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.25, ease: EASE }}
-          className="fixed bottom-6 start-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/25 border border-emerald-500/40 backdrop-blur-md shadow-xl"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] md:bottom-6 start-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/25 border border-emerald-500/40 backdrop-blur-md shadow-xl"
           dir="rtl"
         >
           <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />

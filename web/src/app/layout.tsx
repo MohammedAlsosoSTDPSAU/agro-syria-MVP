@@ -1,6 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo, Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
+import { ThemeController } from "@/components/ThemeController";
+
+// Blocking no-FOUC script: applies the sun-cycle theme class before first paint.
+// Auto = Light 06:00–18:00 local, Dark otherwise; honours a saved override.
+const THEME_INIT = `(function(){try{
+  var k='agro-theme', v=localStorage.getItem(k);
+  var h=new Date().getHours();
+  var t=(v==='light'||v==='dark')?v:((h>=6&&h<18)?'light':'dark');
+  var c=document.documentElement.classList; c.remove('light','dark'); c.add(t);
+}catch(e){}})();`;
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -58,11 +68,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <link rel="apple-touch-icon" href="/icons/icon-180.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
+        <ThemeController />
         {children}
       </body>
     </html>

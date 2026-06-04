@@ -15,10 +15,12 @@ import {
   HelpCircle,
   ChevronLeft,
   Bot,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeController";
 
-interface NavItem {
+export interface NavItem {
   id: string;
   labelAr: string;
   icon: React.ElementType;
@@ -26,7 +28,7 @@ interface NavItem {
   href: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", labelAr: "لوحة التحكم",     icon: LayoutDashboard, href: "/dashboard" },
   { id: "assistant", labelAr: "المساعد الزراعي", icon: Bot,             href: "/copilot" },
   { id: "fields",    labelAr: "حقولي",           icon: Map,             href: "/fields",    badge: "9" },
@@ -37,7 +39,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: "news",      labelAr: "الأخبار الزراعية", icon: Newspaper,       href: "/news",      badge: "قريباً" },
 ];
 
-const BOTTOM_ITEMS: NavItem[] = [
+export const BOTTOM_ITEMS: NavItem[] = [
+  { id: "about",    labelAr: "حول المنصة", icon: Info,       href: "/about"              },
   { id: "settings", labelAr: "الإعدادات", icon: Settings,    href: "/dashboard/settings" },
   { id: "help",     labelAr: "المساعدة",  icon: HelpCircle, href: "/dashboard/help"     },
 ];
@@ -170,6 +173,9 @@ export function Sidebar({ activeId = "dashboard", onNavigate = () => {} }: Sideb
             onClick={() => onNavigate(item.id)}
           />
         ))}
+
+        {/* Sun-cycle theme toggle (Auto · Light · Dark) */}
+        <ThemeToggle collapsed={collapsed} />
 
         {/* Collapse toggle */}
         <button
