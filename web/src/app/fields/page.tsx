@@ -2245,7 +2245,7 @@ export default function FieldsPage() {
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 360, damping: 36 }}
-              className="relative w-full glass-sidebar rounded-t-3xl border-t border-emerald-500/20 max-h-[85dvh] flex flex-col overflow-hidden"
+              className="relative w-full glass-sidebar rounded-t-3xl border-t border-emerald-500/20 h-[85dvh] flex flex-col overflow-hidden"
               style={{ background: "oklch(0.085 0.014 152 / 96%)", backdropFilter: "blur(22px)" }}
             >
               {/* Handle + header (tap the bar or ✕ — or the backdrop — to close) */}
@@ -2262,8 +2262,8 @@ export default function FieldsPage() {
                   </button>
                 </div>
               </div>
-              {/* Content host — the panel scrolls natively inside (overflow-y-auto + pan-y) */}
-              <div className="flex-1 min-h-0 overflow-hidden">
+              {/* Content host — scroll fallback so the dashboard can never freeze (panel also scrolls internally) */}
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ touchAction: "pan-y" }}>
                 <FieldIntelligencePanel
                   field={selectedField}
                   panelView={panelView}
