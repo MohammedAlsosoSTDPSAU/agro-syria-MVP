@@ -14,6 +14,8 @@ import {
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { SyriaMap } from "@/components/workspace/SyriaMap";
 import { cn } from "@/lib/utils";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { CROPS_EXTENDED, CROPS_PHASE3 } from "@/lib/crops-extended";
 
 type Bezier = [number, number, number, number];
@@ -2092,10 +2094,17 @@ function CropsContent() {
               <Leaf className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-foreground">الموسوعة الزراعية الاستراتيجية</h2>
+              <h2 className="text-2xl font-bold text-foreground flex items-center gap-1.5">
+                الموسوعة الزراعية الاستراتيجية
+                <InfoTip label="الموسوعة الزراعية" text="مرجع لكل محصول سوري: المواعيد، الري، التسميد، والإنتاجية المتوقعة — مع حاسبة تفاعلية مبنية على بيانات GCSAR." />
+              </h2>
               <p className="text-sm text-muted-foreground mt-0.5 font-arabic">
                 {CROPS.length} محصولاً — بيانات GCSAR · وكيل الموثق · وكيل الإنتاج
               </p>
+              <PageGuide
+                summary="موسوعة المحاصيل السورية — بيانات موثوقة وإرشادات موسمية وحاسبة إنتاجية."
+                services={["بطاقات المحاصيل", "حاسبة الإنتاجية", "إرشادات موسمية", "بيانات GCSAR", "مزامنة سياق المحصول"]}
+              />
             </div>
           </div>
         </motion.div>

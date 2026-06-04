@@ -204,6 +204,12 @@
   body {
     transition: background-color 500ms ease, color 500ms ease;
   }
+
+  /* Premium, accessible keyboard focus ring across all interactive elements */
+  :where(a, button, [role="button"], input, select, textarea, summary):focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--background), 0 0 0 4px oklch(0.696 0.170 162 / 0.55);
+  }
 }
 
 /* ─── Glassmorphism utilities ─────────────────────────────────────── */

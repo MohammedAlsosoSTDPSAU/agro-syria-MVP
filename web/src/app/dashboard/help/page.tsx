@@ -8,6 +8,7 @@ import {
   Mail, ExternalLink, Play, CheckCircle,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
+import { PageGuide } from "@/components/ui/PageGuide";
 import Link from "next/link";
 
 type Bezier = [number, number, number, number];
@@ -290,6 +291,10 @@ function HelpContent() {
         >
           <h2 className="text-2xl font-bold text-foreground font-arabic">المساعدة والدعم</h2>
           <p className="text-sm text-muted-foreground mt-0.5 font-arabic">كل ما تحتاجه لاستخدام أغرو-سيريا بكفاءة</p>
+          <PageGuide
+            summary="مركز المساعدة — أدلة سريعة وأسئلة شائعة وروابط لكل خدمات المنصّة."
+            services={["دليل البدء السريع", "الأسئلة الشائعة", "شرح الميزات", "روابط الصفحات", "الدعم"]}
+          />
 
           {/* Search */}
           <div className="relative mt-4">

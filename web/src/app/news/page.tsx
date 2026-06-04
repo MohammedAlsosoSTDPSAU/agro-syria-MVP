@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Newspaper, Sprout } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
+import { PageGuide } from "@/components/ui/PageGuide";
 
 type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
@@ -57,6 +58,10 @@ export default function NewsPage() {
           <p className="text-sm md:text-base text-muted-foreground font-arabic leading-relaxed max-w-md">
             قريباً.. لنضع نبض الحقول بين يديك
           </p>
+          <PageGuide
+            summary="الأخبار الزراعية — قرارات رسمية وتنبيهات عاجلة وأسعار المدخلات (قريباً)."
+            services={["قرارات وزارة الزراعة", "تنبيهات عاجلة", "أسعار السماد والوقود", "تحذيرات مناخية"]}
+          />
 
           {/* Animated progress dots */}
           <div className="flex items-center gap-2 pt-2" dir="ltr">

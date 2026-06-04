@@ -13,6 +13,8 @@ import {
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { SyriaMap } from "@/components/workspace/SyriaMap";
 import { cn } from "@/lib/utils";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 // ── Scroll utility ─────────────────────────────────────────────────────────
 // Applied to every independently-scrolling pane for a Notion-thin scrollbar.
@@ -898,10 +900,17 @@ function CommunityContent() {
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
               className="flex items-start justify-between gap-4 mb-4 flex-wrap" dir="rtl">
               <div>
-                <h2 className="text-xl font-bold text-foreground">شبكة المعرفة الزراعية الوطنية</h2>
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-1.5">
+                  شبكة المعرفة الزراعية الوطنية
+                  <InfoTip label="شبكة المجتمع" text="منصّة تفاعلية يطرح فيها المزارعون قضاياهم الميدانية ويتبادلون الحلول مع الخبراء وزملائهم في كل المحافظات." />
+                </h2>
                 <p className="text-[12px] text-muted-foreground mt-0.5">
                   {govFilter ? `قضايا محافظة ${govFilter}` : "قضايا ميدانية · تحليل ذكي · خبرة جماعية"}
                 </p>
+                <PageGuide
+                  summary="مجتمع المزارعين — اطرح قضيتك، شارك خبرتك، وتعاون مع كل المحافظات."
+                  services={["طرح قضية ميدانية", "ردود الخبراء والمزارعين", "تصفية حسب المحافظة", "نبض الموسم", "تعاون وطني"]}
+                />
               </div>
               <button onClick={() => setShowAsk(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all flex-shrink-0">

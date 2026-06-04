@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import Link from "next/link";
 import {
   Droplets, AlertTriangle, CheckCircle, Bot, Shield,
@@ -22,6 +22,8 @@ import {
   syncFieldsToContext,
 } from "@/lib/fields";
 import { AddFieldModal } from "@/components/fields/AddFieldModal";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 /* ─── Types & Constants ──────────────────────────────────────────────── */
 type Overlay  = "health" | "heat" | "moisture" | null;
@@ -1987,8 +1989,9 @@ function FieldIntelligencePanel({ field, panelView, onPanelView, onClose }: {
       </AnimatePresence>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4
-        [scrollbar-width:thin] [scrollbar-color:rgba(52,211,153,0.12)_transparent]">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4
+        [scrollbar-width:thin] [scrollbar-color:rgba(52,211,153,0.12)_transparent]"
+        style={{ touchAction: "pan-y" }}>
         <AnimatePresence mode="wait">
           {panelView === "overview"   && <FiveFoldOverview key="ov" field={field} />}
           {panelView === "forecast"   && <ForecastView key="fc" field={field} />}
@@ -2075,6 +2078,7 @@ export default function FieldsPage() {
   const [fields,     setFields]     = useState<Field[]>(FIELDS);
   const [showAdd,    setShowAdd]    = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const drawerDrag = useDragControls();  // drag the mobile drawer only from its handle
   const [overlay,    setOverlay]    = useState<Overlay>("health");
   const [panelView,  setPanelView]  = useState<PanelView>("overview");
 
@@ -2108,6 +2112,7 @@ export default function FieldsPage() {
             <Leaf className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <span className="text-sm font-bold text-foreground flex-shrink-0">حقولي</span>
+          <InfoTip label="حقولي" text="سجلّ حقولك الرقمي: أضف حقلاً بإحداثيات دقيقة، وتابع صحته وإجهاده المائي وإنذارات الآفات على الخريطة." className="hidden sm:inline-flex" />
           <span className="text-white/20 text-xs mx-0.5 hidden sm:inline">·</span>
           <span className="text-[10.5px] text-muted-foreground truncate hidden sm:inline">
             {fields.length} حقول نشطة · {totalHa(fields).toFixed(1)} هـ إجمالاً
@@ -2132,10 +2137,14 @@ export default function FieldsPage() {
         </div>
       </header>
 
-      {/* Stats strip */}
-      <div className="flex-shrink-0 px-3 sm:px-5 py-3 border-b overflow-x-auto"
+      {/* Stats strip + page guide */}
+      <div className="flex-shrink-0 px-3 sm:px-5 py-3 border-b"
         style={{ borderColor: "rgba(255,255,255,0.04)", background: "rgba(0,0,0,0.14)" }}>
-        <GlassStatStrip fields={fields} />
+        <div className="overflow-x-auto"><GlassStatStrip fields={fields} /></div>
+        <PageGuide
+          summary="سجلّ حقولك الجغرافي — راقب صحة كل حقل وأضف حقولاً بإحداثيات دقيقة."
+          services={["خريطة الحقول التفاعلية", "إضافة حقل بإحداثيات", "صحة المحصول والإجهاد المائي", "إنذارات الآفات", "لوحة استخبارات الحقل"]}
+        />
       </div>
 
       {/* Body — desktop: 3-column app; mobile: stacked (map + list), RTL */}
@@ -2234,26 +2243,34 @@ export default function FieldsPage() {
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 360, damping: 36 }}
               drag="y"
+              dragControls={drawerDrag}
+              dragListener={false}                       /* don't drag from body → lets content scroll */
               dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0, bottom: 0.4 }}
+              dragElastic={{ top: 0, bottom: 0.35 }}
               onDragEnd={(_, info) => { if (info.offset.y > 110) setSelectedId(null); }}
-              className="relative w-full glass-sidebar rounded-t-3xl border-t border-emerald-500/20 max-h-[82dvh] flex flex-col overflow-hidden"
+              className="relative w-full glass-sidebar rounded-t-3xl border-t border-emerald-500/20 max-h-[85dvh] flex flex-col overflow-hidden"
               style={{ background: "oklch(0.085 0.014 152 / 96%)", backdropFilter: "blur(22px)" }}
             >
-              {/* Grab handle + header */}
-              <div className="flex-shrink-0 pt-2.5 px-4 pb-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                <div className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-white/20" />
+              {/* Grab handle + header — the ONLY drag zone (touch-action:none) */}
+              <div
+                className="flex-shrink-0 pt-2.5 px-4 pb-2 border-b cursor-grab active:cursor-grabbing select-none"
+                style={{ borderColor: "rgba(255,255,255,0.06)", touchAction: "none" }}
+                onPointerDown={(e) => drawerDrag.start(e)}
+              >
+                <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-white/25" />
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-bold text-foreground/85">
                     {selectedField.name} <span className="text-muted-foreground/50 font-normal">· {selectedField.province}</span>
                   </span>
                   <button onClick={() => setSelectedId(null)} aria-label="إغلاق"
-                    className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted-foreground">
+                    className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted-foreground"
+                    onPointerDown={(e) => e.stopPropagation()}>
                     <ArrowLeft className="w-3.5 h-3.5 -rotate-90" />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden">
+              {/* Scrollable content — native vertical scroll (pan-y), drag isolated to handle */}
+              <div className="flex-1 min-h-0 overflow-hidden" style={{ touchAction: "pan-y" }}>
                 <FieldIntelligencePanel
                   field={selectedField}
                   panelView={panelView}
