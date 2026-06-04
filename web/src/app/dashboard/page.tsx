@@ -12,6 +12,7 @@ import {
   X, Sparkles,
 } from "lucide-react";
 import { PROVINCES } from "@/lib/weather";
+import { ndviToHealth, type SatelliteTelemetry } from "@/lib/fields";
 import { PROVINCES as GEO_PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { AgentChat }       from "@/components/workspace/AgentChat";
@@ -451,7 +452,11 @@ function getSparkData(cropKey: string | null): number[] {
 }
 
 /* ─── Live Field Radar ───────────────────────────────────────────────── */
-interface StoredField { id?: number|string; name?: string; province?: string; crop?: string; area?: number; }
+interface StoredField {
+  id?: number|string; name?: string; province?: string; crop?: string; area?: number;
+  healthScore?: number; waterStress?: number;
+  satelliteTelemetry?: SatelliteTelemetry; // live feed — preferred over simulated scores
+}
 
 function LiveFieldRadar({ province }: { province: import("@/lib/weather").ProvinceWeather }) {
   const [fields, setFields] = useState<StoredField[]>([]);
@@ -524,8 +529,12 @@ function LiveFieldRadar({ province }: { province: import("@/lib/weather").Provin
         <div className="space-y-3">
           {shown.map((f, i) => {
             const seed   = typeof f.id === "number" ? f.id : i + 1;
-            const health = fieldHealth(seed);
-            const moist  = soilMoisture(seed);
+            const tel    = f.satelliteTelemetry;
+            // Prefer live satellite telemetry → stored score → simulated fallback.
+            const health = tel ? ndviToHealth(tel)
+                         : (typeof f.healthScore === "number" ? f.healthScore : fieldHealth(seed));
+            const moist  = tel ? Math.max(5, Math.min(95, Math.round(100 - tel.waterStressIndex)))
+                         : soilMoisture(seed);
             return (
               <Link key={i} href="/fields">
                 <motion.div whileHover={{ x: -3 }}
@@ -535,7 +544,15 @@ function LiveFieldRadar({ province }: { province: import("@/lib/weather").Provin
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-bold text-foreground font-arabic truncate">{f.name ?? `حقل ${i+1}`}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-xs font-bold text-foreground font-arabic truncate">{f.name ?? `حقل ${i+1}`}</p>
+                        {tel && (
+                          <span className="flex items-center gap-0.5 flex-shrink-0 text-[8px] font-bold text-emerald-300 bg-emerald-500/12 border border-emerald-500/25 rounded-full px-1.5 py-0.5"
+                            title={`بيانات قمر صناعي · ${tel.source ?? "Sentinel-2"}`}>
+                            🛰️ مباشر
+                          </span>
+                        )}
+                      </div>
                       <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
                     </div>
                     {f.crop && <p className="text-[10px] text-muted-foreground/60 font-arabic mb-2">{f.crop}</p>}

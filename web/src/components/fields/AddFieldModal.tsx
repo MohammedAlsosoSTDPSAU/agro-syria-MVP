@@ -8,8 +8,8 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sprout, MapPin, Ruler, Layers, Plus, LocateFixed, Loader2 } from "lucide-react";
-import { PROVINCE_BBOX, type Field } from "@/lib/fields";
+import { X, Sprout, MapPin, Ruler, Layers, Plus, LocateFixed, Loader2, CalendarDays } from "lucide-react";
+import { PROVINCE_BBOX, estimateGrowthStage, type Field } from "@/lib/fields";
 import { PROVINCES as GEO_SHAPES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import { PROVINCE_GEO, nearestProvince, isInSyria, latLngToSvg, svgToLatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,10 @@ function centroidLatLng(nameAr: string): { lat: number; lng: number } {
 let _seq = 0;
 function buildField(
   name: string, crop: string, province: string, areaHa: number, soilType: string,
-  geoPin: [number, number],
+  geoPin: [number, number], latitude: number, longitude: number, plantingDate: string,
 ): Field {
+  // Growth stage is derived dynamically from the planting date — never hardcoded.
+  const { stage, stageProgress } = estimateGrowthStage(plantingDate, crop);
   return {
     id: Date.now() + (_seq++),
     name, crop, province, areaHa, soilType,
@@ -36,10 +38,13 @@ function buildField(
     irrigDaysAgo: 0,
     history: [70, 71, 72, 73, 74, 74, 75],
     geoPin,
+    latitude,        // precise GPS — strictly persisted, not discarded after SVG conversion
+    longitude,
+    plantingDate,
     aiInsight: "حقل جديد — يجمع وكلاؤنا البيانات الأولية لإعداد تحليل دقيق خلال ساعات.",
     guardianAlert: null,
-    stage: "مرحلة التأسيس",
-    stageProgress: 5,
+    stage,
+    stageProgress,
   };
 }
 
@@ -66,6 +71,7 @@ export function AddFieldModal({ onClose, onAdd }: { onClose: () => void; onAdd: 
   const [province, setProvince] = useState(PROVINCES[0]);
   const [area, setArea] = useState("");
   const [soil, setSoil] = useState(SOILS[0]);
+  const [plantingDate, setPlantingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [lat, setLat] = useState(String(init.lat));
   const [lng, setLng] = useState(String(init.lng));
   const [locating, setLocating] = useState(false);
@@ -123,7 +129,9 @@ export function AddFieldModal({ onClose, onAdd }: { onClose: () => void; onAdd: 
     if (!name.trim()) { setError("الرجاء إدخال اسم الحقل"); return; }
     if (!areaHa || areaHa <= 0) { setError("الرجاء إدخال مساحة صحيحة بالهكتار"); return; }
     if (!pin) { setError("الرجاء تحديد موقع الحقل"); return; }
-    onAdd(buildField(name.trim(), crop, province, areaHa, soil, pin));
+    if (!plantingDate) { setError("الرجاء تحديد تاريخ الزراعة"); return; }
+    // Persist the PRECISE captured coordinates — SVG pin is only for rendering.
+    onAdd(buildField(name.trim(), crop, province, areaHa, soil, pin, latNum, lngNum, plantingDate));
     onClose();
   };
 
@@ -190,6 +198,22 @@ export function AddFieldModal({ onClose, onAdd }: { onClose: () => void; onAdd: 
               </select>
             </FieldInput>
           </div>
+
+          {/* ── Planting date (drives the dynamic growth stage) ── */}
+          <FieldInput label="تاريخ الزراعة" icon={CalendarDays}>
+            <input
+              type="date"
+              value={plantingDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => { setPlantingDate(e.target.value); setError(""); }}
+              className={cn(fieldCls, "font-numeric [color-scheme:dark]")}
+              dir="ltr"
+            />
+            <span className="block mt-1 text-[10px] text-muted-foreground/55 font-arabic">
+              تُحتسب مرحلة النمو تلقائياً من هذا التاريخ — {estimateGrowthStage(plantingDate, crop).stage}
+              {" "}({estimateGrowthStage(plantingDate, crop).stageProgress}%)
+            </span>
+          </FieldInput>
 
           {/* ── Precise location picker ── */}
           <div>

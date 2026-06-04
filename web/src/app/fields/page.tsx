@@ -19,8 +19,10 @@ import { SyriaMap, PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import {
   FIELDS, Field, PROVINCE_BBOX,
   healthColor, healthLabel, totalHa, avgHealth, criticalCount,
-  syncFieldsToContext,
+  syncFieldsToContext, migrateField,
 } from "@/lib/fields";
+
+const FIELDS_STORAGE_KEY = "agro_fields";
 import { AddFieldModal } from "@/components/fields/AddFieldModal";
 import { PageGuide } from "@/components/ui/PageGuide";
 import { InfoTip } from "@/components/ui/InfoTip";
@@ -2080,8 +2082,33 @@ export default function FieldsPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [overlay,    setOverlay]    = useState<Overlay>("health");
   const [panelView,  setPanelView]  = useState<PanelView>("overview");
+  const firstPersist = useRef(true);
 
-  useEffect(() => { syncFieldsToContext(fields); }, [fields]);
+  // ── Load persisted fields on mount (survive page refresh); seed + persist on first ever visit ──
+  useEffect(() => {
+    let initial: Field[] = FIELDS;
+    try {
+      const raw = localStorage.getItem(FIELDS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          // migrateField backfills GPS + recomputes the growth stage from plantingDate.
+          initial = parsed.map(migrateField);
+        }
+      }
+    } catch { /* corrupt store — keep seed defaults */ }
+    setFields(initial);
+    try { localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify(initial)); } catch { /* quota */ }
+    syncFieldsToContext(initial);
+  }, []);
+
+  // ── Persist fields + sync agent context on every change (skips the mount tick) ──
+  useEffect(() => {
+    if (firstPersist.current) { firstPersist.current = false; return; }
+    try { localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify(fields)); } catch { /* quota */ }
+    syncFieldsToContext(fields);
+  }, [fields]);
+
   useEffect(() => { setPanelView("overview"); }, [selectedId]);
 
   const handleSelect = useCallback((id: number) => {
