@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, ArrowLeft, Loader2, Leaf, Zap, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 
 /* ─── Animation variants ─────────────────────────────────────────── */
 type Bezier = [number, number, number, number];
@@ -81,26 +82,80 @@ const LEAVES = [
 export function PhoneLogin() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
 
   const isValid = phone.replace(/\D/g, "").length >= 9;
+  const isCodeValid = code.replace(/\D/g, "").length >= 4;
+
+  /** Normalize to E.164 (e.g. +9639XXXXXXXX) for Supabase phone auth. */
+  function toE164(): string {
+    const digits = phone.replace(/\D/g, "").replace(/^0+/, "");
+    return `${COUNTRY_CODE}${digits}`;
+  }
 
   function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/[^\d\s\-()]/g, "");
     setPhone(raw);
+    setError("");
   }
 
+  // ── STEP 1 · request the SMS OTP ──────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid || isLoading) return;
     setIsLoading(true);
-    // Simulate OTP dispatch — replace with real API call
-    await new Promise((r) => setTimeout(r, 1800));
-    setIsLoading(false);
-    setSubmitted(true);
+    setError("");
+
+    const sb = getSupabase();
+    if (isSupabaseConfigured && sb) {
+      // Real Supabase phone OTP dispatch.
+      const { error: otpError } = await sb.auth.signInWithOtp({ phone: toE164() });
+      setIsLoading(false);
+      if (otpError) { setError("تعذّر إرسال رمز التحقق — حاول مرة أخرى"); return; }
+      setSubmitted(true);
+    } else {
+      // Demo fallback (no Supabase env): simulate dispatch, keep the UX flowing.
+      await new Promise((r) => setTimeout(r, 1800));
+      setIsLoading(false);
+      setSubmitted(true);
+    }
+  }
+
+  // ── STEP 2 · verify the OTP and open a session ────────────────────────
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isCodeValid || isVerifying) return;
+    setIsVerifying(true);
+    setError("");
+
+    const sb = getSupabase();
+    if (isSupabaseConfigured && sb) {
+      const { error: verifyError } = await sb.auth.verifyOtp({
+        phone: toE164(),
+        token: code.replace(/\D/g, ""),
+        type: "sms",
+      });
+      setIsVerifying(false);
+      if (verifyError) { setError("رمز غير صحيح أو منتهي — أعد المحاولة"); return; }
+      router.push("/dashboard"); // session cookie is now set
+    } else {
+      // Demo fallback: accept any code.
+      await new Promise((r) => setTimeout(r, 700));
+      setIsVerifying(false);
+      router.push("/dashboard");
+    }
+  }
+
+  function handleChangeNumber() {
+    setSubmitted(false);
+    setCode("");
+    setError("");
   }
 
   async function handleDemoAccess() {
@@ -363,6 +418,94 @@ export function PhoneLogin() {
                   )}
                 </motion.button>
               </motion.form>
+            )}
+          </AnimatePresence>
+
+          {/* ── OTP verification form (shown after the code is sent) ── */}
+          <AnimatePresence>
+            {submitted && (
+              <motion.form
+                key="otp-form"
+                onSubmit={handleVerify}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 16 }}
+                className="w-full space-y-4"
+              >
+                <div className="relative">
+                  <label className="block text-xs text-muted-foreground mb-1.5 font-medium">
+                    رمز التحقق
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    inputMode="numeric"
+                    placeholder="• • • • • •"
+                    value={code}
+                    onChange={(e) => { setCode(e.target.value.replace(/[^\d]/g, "")); setError(""); }}
+                    className={cn(
+                      "w-full bg-white/[0.04] rounded-xl border border-emerald-500/20",
+                      "px-4 py-3 text-center text-lg text-foreground tracking-[0.4em] font-mono",
+                      "placeholder:text-muted-foreground/40 outline-none",
+                      "focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    )}
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                  />
+                </div>
+
+                <motion.button
+                  type="submit"
+                  disabled={!isCodeValid || isVerifying}
+                  whileHover={isCodeValid && !isVerifying ? { scale: 1.1 } : {}}
+                  whileTap={isCodeValid && !isVerifying ? { scale: 0.98 } : {}}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-2 py-3 px-6",
+                    "rounded-xl font-semibold text-sm transition-all duration-300",
+                    isCodeValid && !isVerifying
+                      ? [
+                          "bg-emerald-500 text-forest hover:bg-emerald-400",
+                          "shadow-[0_0_20px_oklch(0.696_0.170_162/_30%)]",
+                          "hover:shadow-[0_0_30px_oklch(0.696_0.170_162/_45%)]",
+                        ]
+                      : "bg-emerald-500/20 text-emerald-500/40 cursor-not-allowed"
+                  )}
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>جارٍ التحقق...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>تأكيد الدخول</span>
+                      <ArrowLeft className="w-4 h-4" />
+                    </>
+                  )}
+                </motion.button>
+
+                <button
+                  type="button"
+                  onClick={handleChangeNumber}
+                  className="w-full text-center text-[11px] text-muted-foreground/60 hover:text-emerald-400 transition-colors"
+                >
+                  تغيير رقم الهاتف
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
+
+          {/* Error message */}
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-[11px] text-red-400 text-center mt-3 font-arabic"
+              >
+                {error}
+              </motion.p>
             )}
           </AnimatePresence>
 

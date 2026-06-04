@@ -35,6 +35,7 @@ export interface Field {
   stageProgress: number;    // 0–100, derived from plantingDate
   satelliteTelemetry?: SatelliteTelemetry; // optional live satellite feed
   ndviTimeSeries?: NdviPoint[];            // optional historical NDVI series
+  remoteId?: string;                       // Supabase row uuid (when synced to DB)
 }
 
 // ── Dynamic growth-stage estimation (replaces hardcoded stage strings) ──

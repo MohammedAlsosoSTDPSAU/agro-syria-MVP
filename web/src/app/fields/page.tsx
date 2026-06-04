@@ -19,10 +19,9 @@ import { SyriaMap, PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
 import {
   FIELDS, Field, PROVINCE_BBOX,
   healthColor, healthLabel, totalHa, avgHealth, criticalCount,
-  syncFieldsToContext, migrateField,
+  syncFieldsToContext,
 } from "@/lib/fields";
-
-const FIELDS_STORAGE_KEY = "agro_fields";
+import { loadFields, saveField, persistCache } from "@/lib/fieldsRepo";
 import { AddFieldModal } from "@/components/fields/AddFieldModal";
 import { PageGuide } from "@/components/ui/PageGuide";
 import { InfoTip } from "@/components/ui/InfoTip";
@@ -2084,28 +2083,28 @@ export default function FieldsPage() {
   const [panelView,  setPanelView]  = useState<PanelView>("overview");
   const firstPersist = useRef(true);
 
-  // ── Load persisted fields on mount (survive page refresh); seed + persist on first ever visit ──
+  // ── Load persisted fields on mount via the repo (Supabase when configured +
+  //    signed in, else offline cache); seed + persist on first ever visit. ──
   useEffect(() => {
-    let initial: Field[] = FIELDS;
-    try {
-      const raw = localStorage.getItem(FIELDS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length) {
-          // migrateField backfills GPS + recomputes the growth stage from plantingDate.
-          initial = parsed.map(migrateField);
-        }
-      }
-    } catch { /* corrupt store — keep seed defaults */ }
-    setFields(initial);
-    try { localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify(initial)); } catch { /* quota */ }
-    syncFieldsToContext(initial);
+    let cancelled = false;
+    (async () => {
+      let initial: Field[] = FIELDS;
+      try {
+        const loaded = await loadFields();
+        if (loaded && loaded.length) initial = loaded;
+      } catch { /* fall back to seed defaults */ }
+      if (cancelled) return;
+      setFields(initial);
+      persistCache(initial);
+      syncFieldsToContext(initial);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // ── Persist fields + sync agent context on every change (skips the mount tick) ──
+  // ── Mirror the working set into the offline cache + agent context on change ──
   useEffect(() => {
     if (firstPersist.current) { firstPersist.current = false; return; }
-    try { localStorage.setItem(FIELDS_STORAGE_KEY, JSON.stringify(fields)); } catch { /* quota */ }
+    persistCache(fields);
     syncFieldsToContext(fields);
   }, [fields]);
 
@@ -2122,6 +2121,15 @@ export default function FieldsPage() {
   const handleAddField = useCallback((f: Field) => {
     setFields(prev => [f, ...prev]);
     setSelectedId(f.id);
+    // Persist to the DB (no-op when Supabase isn't configured) and reconcile remoteId.
+    saveField(f)
+      .then(saved => {
+        if (saved.remoteId && saved.remoteId !== f.remoteId) {
+          setFields(prev => prev.map(x => (x.id === f.id ? saved : x)));
+          setSelectedId(saved.id);
+        }
+      })
+      .catch(() => { /* remains in offline cache */ });
   }, []);
 
   const selectedField = fields.find(f => f.id === selectedId) ?? null;
