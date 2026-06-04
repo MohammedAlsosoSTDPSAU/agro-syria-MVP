@@ -664,7 +664,7 @@ function LeftNav({ govFilter, setGovFilter }: { govFilter: string | null; setGov
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? GOVERNORATES : GOVERNORATES.slice(0, 7);
   return (
-    <div className={cn("w-56 flex-shrink-0 border-r border-white/[0.05] bg-white/[0.005] px-3 py-4 space-y-5", SCROLL)}>
+    <div className={cn("hidden lg:block w-56 flex-shrink-0 border-r border-white/[0.05] bg-white/[0.005] px-3 py-4 space-y-5", SCROLL)}>
       {/* Governorates */}
       <div>
         <p className="text-[9px] font-bold text-muted-foreground/45 uppercase tracking-widest mb-2 px-1" dir="rtl">المحافظات</p>
@@ -733,7 +733,7 @@ function RightIntel({
   const colorFn = (v: number) => lerpHex("#064e3b", "#10b981", Math.max(v, 0.12));
 
   return (
-    <div className={cn("w-64 flex-shrink-0 border-l border-white/[0.05] bg-white/[0.005] px-3 py-4 space-y-5", SCROLL)}>
+    <div className={cn("hidden lg:block w-64 flex-shrink-0 border-l border-white/[0.05] bg-white/[0.005] px-3 py-4 space-y-5", SCROLL)}>
 
       {/* ── Community Activity Radar (SyriaMap) ── */}
       <div>
@@ -882,14 +882,14 @@ function CommunityContent() {
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex flex-col min-h-[100dvh] md:min-h-0 md:flex-1 md:overflow-hidden">
       {/* ── Ticker (full-width strip, never scrolls) ── */}
       <NationalTicker />
 
-      {/* ── 3-column body (each column owns its scroll) ── */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* ── Body: stacked on mobile (feed only), 3-column on desktop ── */}
+      <div className="flex flex-col lg:flex-row md:flex-1 md:min-h-0 md:overflow-hidden">
 
-        {/* LEFT: Regional nav — own thin scroll */}
+        {/* LEFT: Regional nav — desktop only */}
         <LeftNav govFilter={govFilter} setGovFilter={setGovFilter} />
 
         {/* CENTER: Smart feed — the only truly large scroll */}
@@ -916,10 +916,17 @@ function CommunityContent() {
                   services={["طرح قضية ميدانية", "ردود الخبراء والمزارعين", "تصفية حسب المحافظة", "نبض الموسم", "تعاون وطني"]}
                 />
               </div>
-              <button onClick={() => setShowAsk(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all flex-shrink-0">
-                <Plus className="w-4 h-4" /> قضية جديدة
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <InfoTip
+                  title="طرح القضايا والتصفية"
+                  definition="انشر مشكلتك الميدانية ليراها آلاف المزارعين والخبراء، أو صفّ القضايا حسب الفئة والمحافظة لتجد ما يخصّك بسرعة."
+                  services={["طرح قضية جديدة بالتفاصيل والصور", "التبديل بين القضايا وموسوعة الحلول", "البحث في القضايا", "التصفية حسب الفئة والمحافظة"]}
+                />
+                <button onClick={() => setShowAsk(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-sm font-semibold transition-all">
+                  <Plus className="w-4 h-4" /> قضية جديدة
+                </button>
+              </div>
             </motion.div>
 
             {/* Seasonal Insight Card */}

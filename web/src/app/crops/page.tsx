@@ -1532,7 +1532,7 @@ function CropDrawerV2({ crop, onClose, onYieldCalc }: {
         </div>
 
         {/* ── Scrollable body ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ touchAction: "pan-y" }}>
           <AnimatePresence mode="wait">
 
             {tab === "guide" && (

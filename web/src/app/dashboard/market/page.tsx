@@ -17,6 +17,7 @@ import { RelativeTime } from "@/components/market/RelativeTime";
 import { SourceBadge } from "@/components/market/SourceBadge";
 import { cn } from "@/lib/utils";
 import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 import type { MarketResponse, CropPrice } from "@/app/api/market/route";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip as ReTooltip,
@@ -489,25 +490,9 @@ function PriceTrend({ crops }: { crops: CropPrice[] }) {
 }
 
 // ── Agent insight tooltip ──────────────────────────────────────────────────
-function Insight({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="relative inline-flex">
-      <button onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} className="w-3.5 h-3.5 text-muted-foreground/40 hover:text-sky-400 transition-colors">
-        <Bot className="w-3.5 h-3.5"/>
-      </button>
-      <AnimatePresence>
-        {show && (
-          <motion.div initial={{opacity:0,scale:0.92,y:-4}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.92,y:-4}}
-            transition={{duration:0.15,ease:EASE}}
-            className="absolute right-0 top-5 z-50 w-52 rounded-xl border border-sky-500/25 bg-[oklch(0.08_0.02_155)] p-3 shadow-2xl text-[10px] text-foreground/80 leading-relaxed font-arabic"
-            dir="rtl">
-            {text}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+// Market box tooltip → centered InfoTip modal (tap-friendly, never clips on mobile)
+function Insight({ text, title = "شرح القسم", services }: { text: string; title?: string; services?: string[] }) {
+  return <InfoTip title={title} definition={text} services={services} />;
 }
 
 // ── Main page content ─────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 type ThemePref = "dark" | "light" | "system";
 
@@ -107,16 +108,22 @@ function Select({
 
 // ── Section wrapper ────────────────────────────────────────────────────────
 function Section({
-  icon: Icon, title, subtitle, children,
-}: { icon: React.ElementType; title: string; subtitle?: string; children: React.ReactNode }) {
+  icon: Icon, title, subtitle, children, info,
+}: {
+  icon: React.ElementType; title: string; subtitle?: string; children: React.ReactNode;
+  info?: { definition: string; services: string[] };
+}) {
   return (
     <motion.div variants={sectionV} className="glass-card rounded-2xl overflow-hidden" dir="rtl">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-emerald-500/10">
         <div className="w-8 h-8 rounded-lg bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
           <Icon className="w-4 h-4 text-emerald-400" />
         </div>
-        <div>
-          <h3 className="text-sm font-bold text-foreground font-arabic">{title}</h3>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-sm font-bold text-foreground font-arabic">{title}</h3>
+            {info && <InfoTip title={title} definition={info.definition} services={info.services} />}
+          </div>
           {subtitle && <p className="text-[10px] text-muted-foreground font-arabic">{subtitle}</p>}
         </div>
       </div>
@@ -269,7 +276,8 @@ function SettingsContent() {
         <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-5">
 
           {/* ── Profile ── */}
-          <Section icon={User} title="الملف الشخصي" subtitle="بياناتك الزراعية الأساسية">
+          <Section icon={User} title="الملف الشخصي" subtitle="بياناتك الزراعية الأساسية"
+            info={{ definition: "بياناتك الأساسية التي تخصّص المنصّة لأرضك — اسمك، محافظتك، ومحصولك الرئيسي تُستخدم لتدقيق الطقس والسوق والتوصيات.", services: ["تعديل الاسم الكامل", "تحديد المحافظة (يخصّص الطقس/السوق)", "اختيار المحصول الرئيسي"] }}>
             <div className="flex items-center gap-4 pb-4 border-b border-white/[0.05]">
               <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-xl font-bold text-emerald-400 flex-shrink-0">
                 {name[0] ?? "م"}
@@ -305,7 +313,8 @@ function SettingsContent() {
           </Section>
 
           {/* ── Preferences ── */}
-          <Section icon={Globe} title="التفضيلات" subtitle="لغة العرض والوحدات والمظهر">
+          <Section icon={Globe} title="التفضيلات" subtitle="لغة العرض والوحدات والمظهر"
+            info={{ definition: "تحكّم بطريقة عرض المنصّة لتناسب راحتك — اللغة، وحدات القياس، والمظهر يُطبَّق فوراً.", services: ["اللغة (عربية/إنجليزية)", "الوحدات (متري/إمبريالي)", "وحدة الحرارة (°م/°F)", "المظهر داكن/فاتح/تلقائي"] }}>
 
             <FieldRow label="اللغة" description="لغة واجهة المستخدم">
               <RadioGroup
@@ -351,7 +360,8 @@ function SettingsContent() {
           </Section>
 
           {/* ── Notifications ── */}
-          <Section icon={Bell} title="الإشعارات" subtitle="تحكم في التنبيهات التي تصلك">
+          <Section icon={Bell} title="الإشعارات" subtitle="تحكم في التنبيهات التي تصلك"
+            info={{ definition: "اختر التنبيهات التي تصلك حتى لا تفوتك لحظة حاسمة لمحصولك — ويمكنك استقبالها حتى عبر SMS دون إنترنت.", services: ["تنبيهات SMS", "تحذيرات الطقس المتطرف", "تغيّرات أسعار السوق", "توصيات الذكاء الاصطناعي", "تحذيرات الآفات", "ردود المجتمع"] }}>
             {[
               {
                 key: "sms" as const,
@@ -394,7 +404,8 @@ function SettingsContent() {
           </Section>
 
           {/* ── Account / Danger zone ── */}
-          <Section icon={Shield} title="الحساب والأمان" subtitle="إجراءات الحساب الرئيسية">
+          <Section icon={Shield} title="الحساب والأمان" subtitle="إجراءات الحساب الرئيسية"
+            info={{ definition: "إدارة أمان حسابك والتحكّم ببياناتك — أنت صاحب القرار في كل ما يخص حسابك.", services: ["تغيير كلمة المرور", "تسجيل الخروج الآمن", "حذف بيانات الحقول"] }}>
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                 <div dir="rtl">

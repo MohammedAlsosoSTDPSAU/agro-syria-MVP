@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PageGuide } from "@/components/ui/PageGuide";
+import { InfoTip } from "@/components/ui/InfoTip";
 import Link from "next/link";
 
 type Bezier = [number, number, number, number];
@@ -319,6 +320,11 @@ function HelpContent() {
             <div className="flex items-center gap-2 mb-4">
               <BookOpen className="w-4 h-4 text-emerald-400" />
               <h3 className="text-sm font-bold text-foreground font-arabic">دروس تعليمية سريعة</h3>
+              <InfoTip
+                title="دروس تعليمية سريعة"
+                definition="بطاقات إرشادية قصيرة تأخذك خطوة بخطوة في أهم مهام المنصّة، لتبدأ بثقة من أول استخدام."
+                services={["شرح إضافة الحقول والمحاصيل", "خطوات قراءة الطقس والسوق", "استخدام المساعد الذكي", "روابط مباشرة لكل صفحة"]}
+              />
             </div>
             <motion.div variants={stagger} initial="hidden" animate="visible"
               className="grid grid-cols-1 sm:grid-cols-2 gap-3"
@@ -337,6 +343,11 @@ function HelpContent() {
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-emerald-400" />
               <h3 className="text-sm font-bold text-foreground font-arabic">الأسئلة الشائعة</h3>
+              <InfoTip
+                title="الأسئلة الشائعة"
+                definition="إجابات جاهزة لأكثر ما يسأل عنه المزارعون — مرتّبة حسب الفئة وقابلة للبحث لتجد حلّك فوراً."
+                services={["البحث في الأسئلة", "التصفية حسب الفئة (حقول/سوق/طقس…)", "إجابات تفصيلية قابلة للطيّ"]}
+              />
             </div>
             {/* Category filter */}
             <div className="flex gap-1.5 flex-wrap">
@@ -374,6 +385,11 @@ function HelpContent() {
           <div className="flex items-center gap-2 mb-4">
             <LifeBuoy className="w-4 h-4 text-emerald-400" />
             <h3 className="text-sm font-bold text-foreground font-arabic">تواصل مع الدعم</h3>
+            <InfoTip
+              title="تواصل مع الدعم"
+              definition="قنوات التواصل مع فريق أغرو-سيريا متى احتجت مساعدة بشرية أو واجهت مشكلة تقنية."
+              services={["قنوات الدعم المباشر", "الإبلاغ عن مشكلة", "اقتراح تحسينات"]}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
