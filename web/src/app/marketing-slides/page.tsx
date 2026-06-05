@@ -45,12 +45,45 @@ interface ImageFormat {
   vertical: boolean; Icon: React.ElementType;
 }
 const IMAGE_FORMATS: ImageFormat[] = [
-  { id: "square",   label: "إنستغرام / فيسبوك — مربّع", sub: "1:1 · 1080×1080",  w: 1080, h: 1080, designW: 980,  padX: 70, padY: 70,  vertical: true,  Icon: Square },
-  { id: "portrait", label: "إنستغرام / فيسبوك — عمودي", sub: "4:5 · 1080×1350",  w: 1080, h: 1350, designW: 980,  padX: 70, padY: 90,  vertical: true,  Icon: RectangleVertical },
-  { id: "story",    label: "ستوري / واتساب / تيك توك",  sub: "9:16 · 1080×1920", w: 1080, h: 1920, designW: 940,  padX: 80, padY: 120, vertical: true,  Icon: Smartphone },
-  { id: "twitter",  label: "X / تويتر",                sub: "16:9 · 1200×675",  w: 1200, h: 675,  designW: 1140, padX: 64, padY: 48,  vertical: false, Icon: RectangleHorizontal },
-  { id: "linkedin", label: "لينكدإن / مستند",          sub: "A4 أفقي · 1414×1000", w: 1414, h: 1000, designW: 1320, padX: 80, padY: 64, vertical: false, Icon: FileText },
+  { id: "instagram",       label: "إنستغرام — منشور مربّع", sub: "1080 × 1080", w: 1080, h: 1080, designW: 980,  padX: 60, padY: 60,  vertical: true,  Icon: Square },
+  { id: "instagram-story", label: "إنستغرام — ستوري",       sub: "1080 × 1920", w: 1080, h: 1920, designW: 940,  padX: 80, padY: 110, vertical: true,  Icon: Smartphone },
+  { id: "linkedin",        label: "لينكدإن — منشور",        sub: "1200 × 627",  w: 1200, h: 627,  designW: 1150, padX: 48, padY: 34,  vertical: false, Icon: FileText },
+  { id: "twitter",         label: "تويتر / X — منشور",      sub: "1600 × 900",  w: 1600, h: 900,  designW: 1500, padX: 64, padY: 56,  vertical: false, Icon: RectangleHorizontal },
+  { id: "facebook",        label: "فيسبوك — منشور",         sub: "1200 × 630",  w: 1200, h: 630,  designW: 1150, padX: 48, padY: 34,  vertical: false, Icon: Monitor },
 ];
+
+// ── FEATURE 3 · decorative overlay (Option A: fine golden neural/root network) ──
+// Self-contained SVG, corner-concentrated, center stays clean; captured with the slide.
+function NeuralCluster() {
+  return (
+    <g stroke="#C9A84C" strokeWidth={0.8} strokeLinecap="round" fill="none">
+      <path d="M5,98 C20,90 30,75 35,60" />
+      <path d="M35,60 C40,50 52,48 62,42" />
+      <path d="M35,60 C30,48 33,35 28,22" />
+      <path d="M5,98 C18,92 28,88 42,86" />
+      <path d="M42,86 C52,84 60,78 70,74" />
+      <path d="M28,22 C26,14 30,8 24,2" />
+      <path d="M62,42 C70,38 76,40 84,34" />
+      {[[35,60],[62,42],[28,22],[42,86],[70,74],[24,2],[84,34]].map(([x,y],i) => (
+        <circle key={i} cx={x} cy={y} r={1.1} fill="#C9A84C" stroke="none" />
+      ))}
+    </g>
+  );
+}
+function DeckOverlay() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
+        className="absolute" style={{ left: "-3%", bottom: "-3%", width: "44%", height: "44%", opacity: 0.18 }}>
+        <NeuralCluster />
+      </svg>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
+        className="absolute" style={{ right: "-3%", top: "-3%", width: "44%", height: "44%", opacity: 0.18, transform: "rotate(180deg)" }}>
+        <NeuralCluster />
+      </svg>
+    </div>
+  );
+}
 
 /* Per-slide overlay: choose a platform layout and download the slide as a PNG. */
 function ImageExportMenu({ onExport, busy }: { onExport: (f: ImageFormat) => void; busy: boolean }) {
@@ -135,7 +168,8 @@ function MacWindow({ url, image, caption }: { url: string; image: string; captio
       </div>
 
       {/* Screen — static screenshot, clipped flush to the frame's curves */}
-      <div className="relative aspect-[16/9] overflow-hidden rounded-b-xl bg-slate-950/40">
+      <div className="relative overflow-hidden rounded-b-xl bg-slate-950/40"
+           style={{ minHeight: "280px", height: "clamp(280px, 38vw, 520px)" }}>
         {!errored ? (
           <Image
             src={image}
@@ -389,15 +423,17 @@ function buildSlides(): React.ReactNode[] {
   FEATURES.forEach((f) => {
     const Icon = f.icon;
     slides.push(
-      <div key={`feat-${f.id}`} className="feat-slide grid lg:grid-cols-[1fr_1.5fr] gap-6 lg:gap-12 items-center">
+      <div key={`feat-${f.id}`} className="feat-slide grid lg:grid-cols-[1fr_2fr] gap-6 lg:gap-10 items-start">
         <div className="feat-text order-2 lg:order-1 space-y-5">
           <Kicker icon={Icon} text={f.kicker} />
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-foreground leading-tight tracking-tight">{f.title}</h2>
           <p className="text-xl sm:text-2xl text-emerald-300/90 font-arabic leading-relaxed font-bold">{f.tagline}</p>
           <div className="pt-1"><Highlights points={f.points} /></div>
         </div>
-        <div className="feat-media order-1 lg:order-2">
-          <MacWindow url={f.url} image={f.image} caption={f.caption} />
+        <div className="feat-media order-1 lg:order-2 flex flex-col">
+          <div style={{ minHeight: "320px" }}>
+            <MacWindow url={f.url} image={f.image} caption={f.caption} />
+          </div>
         </div>
       </div>,
     );
@@ -501,6 +537,7 @@ export default function MarketingSlidesPage() {
   const [format, setFormat] = useState<DeckFormat>("landscape");
   const [capture, setCapture] = useState<ImageFormat | null>(null);
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -513,44 +550,74 @@ export default function MarketingSlidesPage() {
   // Capture the active slide into the chosen aspect ratio, then download + restore.
   useEffect(() => {
     if (!capture) return;
+    console.log("[export] effect fired", capture?.id);
     let cancelled = false;
     const nextFrame = () => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
     (async () => {
+      // FIX 2B — give React a full render cycle to mount + paint the fixed
+      // stage before we read stageRef (the effect fires before it's mounted).
+      await new Promise<void>(r => setTimeout(r, 150));
+      console.log("[export] stage mounted?", !!stageRef.current,
+        stageRef.current?.offsetWidth, stageRef.current?.offsetHeight);
+
       const stage = stageRef.current;
       const content = contentRef.current;
       if (!stage || !content) { setBusy(false); setCapture(null); return; }
 
-      await nextFrame(); // let the slide + images lay out
+      // Force the browser to composite the fixed element.
+      await nextFrame();
+      // FIX 2C — wait for all images inside the stage to finish loading.
+      const imgs = Array.from(stage.querySelectorAll("img"));
+      await Promise.all(imgs.map(img =>
+        img.complete
+          ? img.decode().catch(() => {})
+          : new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); })
+      ));
+      await document.fonts.ready;
 
-      // Scale the slide so it fits the target frame exactly (never clips).
+      // BUG 3 — fit by width against the FIXED frame height; the content box
+      // clips any vertical overflow (height + overflow:hidden in its style).
       const availW = capture.w - capture.padX * 2;
       const availH = capture.h - capture.padY * 2;
-      content.style.transform = "scale(1)";
-      const cw = content.scrollWidth || capture.designW;
-      const ch = content.scrollHeight || availH;
-      const scale = Math.max(0.3, Math.min(availW / cw, availH / ch, 1.3));
+      const cw = capture.designW;
+      const ch = capture.h - capture.padY * 2; // fixed, not scrollHeight
+      const scale = Math.min(availW / cw, availH / ch, 1.0); // cap at 1.0
       content.style.transform = `scale(${scale})`;
+      await nextFrame();
 
-      await nextFrame(); // commit the scale before snapshot
+      // BUG 3 — overflow guard: shrink any text box that overflows its own height.
+      const textEls = Array.from(
+        stage.querySelectorAll("p, h1, h2, h3, li, span")
+      ) as HTMLElement[];
+      let reduced = false;
+      for (const el of textEls) {
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (el.scrollHeight > el.clientHeight + 2 && size > 12) {
+          size -= 1;
+          el.style.fontSize = size + "px";
+          reduced = true;
+        }
+      }
+      // One more frame after font shrink.
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
 
       try {
-        const isLight =
-          document.documentElement.classList.contains("light") ||
-          document.body.classList.contains("light");
-        const dataUrl = await toPng(stage, {
-          pixelRatio: 2,
-          quality: 0.95,
-          cacheBust: true,
-          backgroundColor: isLight ? "#F5F7F5" : "#0A0F0D",
-          width: capture.w,
-          height: capture.h,
-        });
+        // FIX 2D — double render (html-to-image blank-first-frame quirk). No
+        // backgroundColor: let the DOM gradient + overlay show through.
+        console.log("[export] capturing...");
+        const opts = { pixelRatio: 2, cacheBust: true, width: capture.w, height: capture.h };
+        await toPng(stage, opts);                  // prime pass — discarded
+        const dataUrl = await toPng(stage, opts);  // real capture
         if (!cancelled) {
           const link = document.createElement("a");
-          link.download = `agro_syria_slide_${index + 1}_${capture.id}.png`;
+          link.download = `agro-syria-slide-${index + 1}-${capture.id}.png`;
           link.href = dataUrl;
           link.click();
+          if (reduced) {
+            setToast("تم تصغير الخط تلقائياً للملاءمة");
+            window.setTimeout(() => setToast(null), 3200);
+          }
         }
       } catch (err) {
         console.error("تعذّر إنشاء صورة الشريحة:", err);
@@ -625,6 +692,8 @@ export default function MarketingSlidesPage() {
 
       {/* Stage (screen only) */}
       <main className="deck-ui relative flex-1 min-h-0 flex items-center justify-center overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-4 print:hidden">
+        {/* Decorative golden neural/root overlay (behind the slide content) */}
+        <DeckOverlay />
         {/* Per-slide image export overlay */}
         <div className="absolute top-3 end-3 z-30 print:hidden">
           <ImageExportMenu onExport={exportSlide} busy={busy} />
@@ -634,7 +703,7 @@ export default function MarketingSlidesPage() {
             key={index} custom={dir} variants={variants}
             initial="enter" animate="center" exit="exit"
             transition={{ duration: 0.4, ease: EASE }}
-            className="w-full max-w-6xl mx-auto"
+            className="relative z-10 w-full max-w-6xl mx-auto"
           >
             {slides[index]}
           </motion.section>
@@ -683,6 +752,19 @@ export default function MarketingSlidesPage() {
         ))}
       </div>
 
+      {/* Non-blocking toast (e.g. auto font-shrink notice) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.2 }} dir="rtl"
+            className="deck-ui fixed bottom-20 left-1/2 -translate-x-1/2 z-50 print:hidden rounded-xl glass-card border border-emerald-500/25 px-4 py-2.5 text-sm font-arabic text-emerald-200 shadow-2xl"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Off-screen capture stage — rasterized by html-to-image, then removed */}
       {capture && (
         <div
@@ -690,17 +772,38 @@ export default function MarketingSlidesPage() {
           dir="rtl"
           className={cn("capture-stage", capture.vertical ? "is-vertical" : "is-landscape")}
           style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
             width: capture.w,
             height: capture.h,
+            // NOTE: not opacity:0 — html-to-image copies the root's computed
+            // opacity into the clone, so opacity:0 renders a transparent (empty)
+            // PNG. zIndex:-1 hides it behind the opaque deck UI while still
+            // compositing it so the capture is non-blank.
+            pointerEvents: "none",
+            zIndex: -1,
+            overflow: "hidden",
             padding: `${capture.padY}px ${capture.padX}px`,
-            background:
-              typeof document !== "undefined" &&
-              (document.documentElement.classList.contains("light") || document.body.classList.contains("light"))
-                ? "#F5F7F5"
-                : "#0A0F0D",
+            background: typeof document !== "undefined" &&
+              (document.documentElement.classList.contains("light") ||
+               document.body.classList.contains("light"))
+              ? "#F5F7F5"
+              : "linear-gradient(135deg, #0D2018 0%, #0A1F14 40%, #061510 70%, #0D1A0E 100%)",
           }}
         >
-          <div ref={contentRef} className="cap-content" style={{ width: capture.designW }}>
+          <DeckOverlay />
+          <div
+            ref={contentRef}
+            className="cap-content"
+            style={{
+              width: capture.designW,
+              height: capture.h - capture.padY * 2,
+              overflow: "hidden",
+              position: "relative",
+              zIndex: 1,
+            }}
+          >
             {slides[index]}
           </div>
         </div>

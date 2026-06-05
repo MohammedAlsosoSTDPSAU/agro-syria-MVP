@@ -448,8 +448,12 @@ html, body { overflow-x: hidden; max-width: 100%; }
 .capture-stage *,
 .capture-stage *::before,
 .capture-stage *::after {
+  /* Strip only the effects that break canvas serialization — keep
+     background, border, color, and opacity so the rich look survives. */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
   animation: none !important;
   transition: none !important;
 }
