@@ -125,8 +125,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         os.environ.pop("LANGCHAIN_TRACING_V2", None)
         log.info("LangSmith tracing disabled for chat requests (warmup trace sent)")
 
-    # Probe OpenAI and mark unavailable immediately if quota is exhausted.
-    await _probe_openai()
+    # Startup LLM probe DISABLED on Render free tier: the first cold-start
+    # outbound request to Gemini takes 10-20s, longer than the probe's 8s
+    # timeout, so it would wrongly mark the LLM unavailable and lock the
+    # session into local synthesis. The graph warm-up above already exercises
+    # the stack; availability is resolved lazily on the first real request.
+    # await _probe_openai()
 
     log.info("الخادم جاهز — Server is ready ✓")
     yield
