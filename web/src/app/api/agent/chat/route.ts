@@ -54,7 +54,7 @@ async function proxyFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
     return res.json() as Promise<ChatResponse>;

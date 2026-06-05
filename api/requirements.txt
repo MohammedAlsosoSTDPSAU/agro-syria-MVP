@@ -16,10 +16,10 @@ langchain-openai>=0.2.10
 httpx>=0.27.0
 
 # ── RAG — neural Arabic embeddings + vector store ────────────────────
-faiss-cpu>=1.8.0
+# faiss-cpu>=1.8.0           # disabled on free tier (heavy) — fastembed/TF-IDF cover fallback
 scikit-learn>=1.4.0          # TF-IDF fallback when neural unavailable
 numpy>=1.25,<2               # pinned: torch 2.2.x compiled against NumPy 1.x ABI
 fastembed>=0.3.0             # ONNX-based embeddings — primary backend, no PyTorch needed
-sentence-transformers>=3.0,<4.0   # fallback if fastembed unavailable
-torch>=2.2,<2.3              # optional (sentence-transformers only)
+# sentence-transformers>=3.0,<4.0   # disabled on free tier (pulls torch) — fastembed is primary
+# torch>=2.2,<2.3            # disabled on free tier (~2GB) — only needed by sentence-transformers
 pypdf>=4.0.0                 # PDF ingestion for knowledge_base/
