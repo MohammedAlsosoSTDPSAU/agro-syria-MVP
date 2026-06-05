@@ -9,8 +9,9 @@
  * native PDF export (print), and full Sun-Cycle light/dark sync.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { toPng } from "html-to-image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, Camera, Sparkles, ArrowLeft,
@@ -18,6 +19,7 @@ import {
   ShieldCheck, Rocket, AlertTriangle, Globe, Zap, Heart, ExternalLink,
   Download, Users, Newspaper,
   Monitor, Square, RectangleVertical, Smartphone,
+  ImageDown, ChevronDown, Loader2, RectangleHorizontal, FileText,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeController";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,69 @@ const FORMATS: { id: DeckFormat; label: string; Icon: React.ElementType }[] = [
   { id: "portrait",  label: "عمودي 4:5 · إنستغرام",      Icon: RectangleVertical },
   { id: "story",     label: "ستوري 9:16 · ريلز و واتساب", Icon: Smartphone },
 ];
+
+/* Single-slide image export — target social aspect ratios (html-to-image). */
+interface ImageFormat {
+  id: string; label: string; sub: string;
+  w: number; h: number; designW: number; padX: number; padY: number;
+  vertical: boolean; Icon: React.ElementType;
+}
+const IMAGE_FORMATS: ImageFormat[] = [
+  { id: "square",   label: "إنستغرام / فيسبوك — مربّع", sub: "1:1 · 1080×1080",  w: 1080, h: 1080, designW: 980,  padX: 70, padY: 70,  vertical: true,  Icon: Square },
+  { id: "portrait", label: "إنستغرام / فيسبوك — عمودي", sub: "4:5 · 1080×1350",  w: 1080, h: 1350, designW: 980,  padX: 70, padY: 90,  vertical: true,  Icon: RectangleVertical },
+  { id: "story",    label: "ستوري / واتساب / تيك توك",  sub: "9:16 · 1080×1920", w: 1080, h: 1920, designW: 940,  padX: 80, padY: 120, vertical: true,  Icon: Smartphone },
+  { id: "twitter",  label: "X / تويتر",                sub: "16:9 · 1200×675",  w: 1200, h: 675,  designW: 1140, padX: 64, padY: 48,  vertical: false, Icon: RectangleHorizontal },
+  { id: "linkedin", label: "لينكدإن / مستند",          sub: "A4 أفقي · 1414×1000", w: 1414, h: 1000, designW: 1320, padX: 80, padY: 64, vertical: false, Icon: FileText },
+];
+
+/* Per-slide overlay: choose a platform layout and download the slide as a PNG. */
+function ImageExportMenu({ onExport, busy }: { onExport: (f: ImageFormat) => void; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)} disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-xl glass-card px-3 py-2 text-xs sm:text-sm font-bold font-arabic text-foreground hover:text-emerald-300 transition-colors disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <ImageDown className="w-4 h-4 text-emerald-400" />}
+        <span className="hidden sm:inline">{busy ? "جارٍ التصدير…" : "حفظ كصورة للمنصات"}</span>
+        <span className="sm:hidden">صورة</span>
+        {!busy && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />}
+      </button>
+      <AnimatePresence>
+        {open && !busy && (
+          <>
+            <button className="fixed inset-0 z-10 cursor-default" aria-hidden tabIndex={-1} onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }} dir="rtl"
+              className="absolute end-0 mt-2 w-72 z-20 rounded-2xl glass-card border border-white/10 p-1.5 shadow-2xl"
+            >
+              <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-bold text-muted-foreground/70 font-arabic">اختر مقاس المنصّة</p>
+              {IMAGE_FORMATS.map(f => {
+                const I = f.Icon;
+                return (
+                  <button
+                    key={f.id} onClick={() => { setOpen(false); onExport(f); }}
+                    className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-start hover:bg-emerald-500/12 transition-colors"
+                  >
+                    <span className="w-7 h-7 rounded-lg bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
+                      <I className="w-3.5 h-3.5 text-emerald-400" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[12px] font-bold text-foreground font-arabic truncate">{f.label}</span>
+                      <span className="block text-[10px] text-muted-foreground font-numeric" dir="ltr">{f.sub}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Discord-inspired 3D glass window mockup — static screenshot, perfectly clipped
@@ -434,6 +499,68 @@ export default function MarketingSlidesPage() {
   const total = slides.length;
   const [[index, dir], setState] = useState<[number, number]>([0, 0]);
   const [format, setFormat] = useState<DeckFormat>("landscape");
+  const [capture, setCapture] = useState<ImageFormat | null>(null);
+  const [busy, setBusy] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const exportSlide = useCallback((fmt: ImageFormat) => {
+    if (busy) return;
+    setBusy(true);
+    setCapture(fmt); // renders the off-screen capture stage → effect rasterizes it
+  }, [busy]);
+
+  // Capture the active slide into the chosen aspect ratio, then download + restore.
+  useEffect(() => {
+    if (!capture) return;
+    let cancelled = false;
+    const nextFrame = () => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+    (async () => {
+      const stage = stageRef.current;
+      const content = contentRef.current;
+      if (!stage || !content) { setBusy(false); setCapture(null); return; }
+
+      await nextFrame(); // let the slide + images lay out
+
+      // Scale the slide so it fits the target frame exactly (never clips).
+      const availW = capture.w - capture.padX * 2;
+      const availH = capture.h - capture.padY * 2;
+      content.style.transform = "scale(1)";
+      const cw = content.scrollWidth || capture.designW;
+      const ch = content.scrollHeight || availH;
+      const scale = Math.max(0.3, Math.min(availW / cw, availH / ch, 1.3));
+      content.style.transform = `scale(${scale})`;
+
+      await nextFrame(); // commit the scale before snapshot
+
+      try {
+        const isLight =
+          document.documentElement.classList.contains("light") ||
+          document.body.classList.contains("light");
+        const dataUrl = await toPng(stage, {
+          pixelRatio: 2,
+          quality: 0.95,
+          cacheBust: true,
+          backgroundColor: isLight ? "#F5F7F5" : "#0A0F0D",
+          width: capture.w,
+          height: capture.h,
+        });
+        if (!cancelled) {
+          const link = document.createElement("a");
+          link.download = `agro_syria_slide_${index + 1}_${capture.id}.png`;
+          link.href = dataUrl;
+          link.click();
+        }
+      } catch (err) {
+        console.error("تعذّر إنشاء صورة الشريحة:", err);
+      } finally {
+        if (!cancelled) { setBusy(false); setCapture(null); }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [capture, index]);
 
   const go = useCallback((d: number) => {
     setState(([i]) => [Math.min(Math.max(i + d, 0), total - 1), d]);
@@ -498,6 +625,10 @@ export default function MarketingSlidesPage() {
 
       {/* Stage (screen only) */}
       <main className="deck-ui relative flex-1 min-h-0 flex items-center justify-center overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-4 print:hidden">
+        {/* Per-slide image export overlay */}
+        <div className="absolute top-3 end-3 z-30 print:hidden">
+          <ImageExportMenu onExport={exportSlide} busy={busy} />
+        </div>
         <AnimatePresence mode="wait" custom={dir}>
           <motion.section
             key={index} custom={dir} variants={variants}
@@ -551,6 +682,29 @@ export default function MarketingSlidesPage() {
           </section>
         ))}
       </div>
+
+      {/* Off-screen capture stage — rasterized by html-to-image, then removed */}
+      {capture && (
+        <div
+          ref={stageRef}
+          dir="rtl"
+          className={cn("capture-stage", capture.vertical ? "is-vertical" : "is-landscape")}
+          style={{
+            width: capture.w,
+            height: capture.h,
+            padding: `${capture.padY}px ${capture.padX}px`,
+            background:
+              typeof document !== "undefined" &&
+              (document.documentElement.classList.contains("light") || document.body.classList.contains("light"))
+                ? "#F5F7F5"
+                : "#0A0F0D",
+          }}
+        >
+          <div ref={contentRef} className="cap-content" style={{ width: capture.designW }}>
+            {slides[index]}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
