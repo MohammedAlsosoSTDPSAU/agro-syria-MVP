@@ -409,68 +409,6 @@
 html, body { overflow-x: hidden; max-width: 100%; }
 
 /* ─────────────────────────────────────────────────────────────────────
-   Single-slide image export — off-screen capture stage (html-to-image)
-   Sized to an exact social aspect ratio; the active slide is rendered inside
-   and rasterized. Mirrors the print flattening so glass/blur/gradients (which
-   canvas serialization can't reproduce) become crisp solids.
-   ───────────────────────────────────────────────────────────────────── */
-.capture-stage {
-  position: fixed;
-  left: -100000px;
-  top: 0;
-  z-index: -1;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.capture-stage .cap-content { transform-origin: center center; }
-
-/* Vertical / square → single column, image on top */
-.capture-stage.is-vertical .feat-slide {
-  grid-template-columns: 1fr !important;
-  gap: 1.75rem !important;
-  align-content: center;
-}
-.capture-stage.is-vertical .feat-media { order: -1 !important; }
-
-/* Landscape (X / LinkedIn) → force two-column regardless of viewport width */
-.capture-stage.is-landscape .feat-slide {
-  grid-template-columns: 1fr 1.5fr !important;
-  gap: 2.5rem !important;
-  align-items: center;
-}
-.capture-stage.is-landscape .feat-text  { order: 1 !important; }
-.capture-stage.is-landscape .feat-media { order: 2 !important; }
-
-/* Flatten effects that don't serialize to canvas */
-.capture-stage *,
-.capture-stage *::before,
-.capture-stage *::after {
-  /* Strip only the effects that break canvas serialization — keep
-     background, border, color, and opacity so the rich look survives. */
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  animation: none !important;
-  transition: none !important;
-}
-.capture-stage .bg-forest-mesh { background-image: none !important; }
-.capture-stage .glass-card { background-color: #0f1714 !important; border-color: rgba(16,185,129,0.20) !important; }
-.light .capture-stage .glass-card { background-color: #ffffff !important; border-color: rgba(16,185,129,0.22) !important; }
-.capture-stage .bg-slate-950\/40,
-.capture-stage .bg-slate-950\/30 { background-color: #0d1512 !important; }
-.capture-stage .bg-slate-900\/50 { background-color: #131c18 !important; }
-.capture-stage .bg-slate-950\/60 { background-color: #0a0f0d !important; }
-.capture-stage .text-emerald-gradient {
-  background: none !important;
-  -webkit-text-fill-color: #10b981 !important;
-  color: #10b981 !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────────
    Marketing deck — PDF export print styles (route: /marketing-slides)
    Each slide becomes a standalone full-bleed landscape page; all UI chrome
    is hidden; mesh/glows/colors print at full fidelity.

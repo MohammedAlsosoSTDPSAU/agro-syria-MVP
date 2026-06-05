@@ -274,90 +274,90 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     id: "dashboard", icon: LayoutDashboard, kicker: "مركز القيادة", title: "لوحة تحكّم تضع المزرعة كلّها بين يديك",
-    tagline: "نظرة واحدة... وقرار واثق يصنع الفرق.",
+    tagline: "مزرعتك كلّها في شاشة واحدة، لا شيء يفوتك.",
     url: `${PROD_URL}/dashboard`, image: "/marketing/dashboard.png",
     caption: "📸 [مكان لقطة الشاشة: لوحة التحكم مع خريطة المخاطر الجغرافية التفاعلية]",
     points: [
-      "خريطة مخاطر جغرافية دقيقة بحدود المحافظات السورية الحقيقية",
-      "ملخّص لحظي من وكيل المناخ ومؤشر صحة المزرعة",
-      "إنذارات الطقس المتطرف وإجراءات سريعة بنقرة واحدة",
+      "كنت تتنقّل بين دفاترَ وتطبيقاتٍ متفرّقة؟ الآن كلّ أرضك في لوحةٍ واحدة.",
+      "كنت تكتشف الخطر بعد فوات الأوان؟ الخريطة تُنذرك بحدود محافظتك لحظةً بلحظة.",
+      "كنت تتردّد في القرار؟ مؤشّر صحة المزرعة وإجراءٌ بنقرةٍ يحسمان أمرك.",
     ],
   },
   {
     id: "weather", icon: CloudSun, kicker: "مُعاد بناؤه من الجذور", title: "طقسٌ ذكيّ يحمي موسمك قبل أن يبدأ الخطر",
-    tagline: "دقّة على مستوى كل محافظة... وثقة في كل قرار ريّ.",
+    tagline: "اعرف ما سيحدث لأرضك قبل أن يحدث.",
     url: `${PROD_URL}/weather`, image: "/marketing/weather.png",
     caption: "📸 [مكان لقطة الشاشة: صفحة الطقس المتجاوبة الجديدة]",
     points: [
-      "مؤشرات حرارة ورياح وأمطار مثبّتة على مركز كل محافظة بدقّة",
-      "توقّعات ٧ أيام ومحرّك التبخّر-نتح (ET₀) لجدولة ريّ أذكى",
-      "إنذارات الصقيع وموجات الحر والجفاف بألوان واضحة فوراً",
+      "كم مرّةٍ باغتك الصقيع أو موجة الحر؟ الآن إنذارٌ مبكر يصلك بوقتٍ كافٍ.",
+      "كنت تروي بالتخمين؟ محرّك التبخّر-نتح (ET₀) يحسب حاجة أرضك للماء بدقّة.",
+      "كنت تتابع طقساً عامّاً لا يخصّك؟ توقّعات سبعة أيام مثبّتة على محافظتك وحدها.",
     ],
   },
   {
     id: "copilot", icon: Bot, kicker: "تجربة غامرة", title: "مساعدٌ ذكيّ يفهمك بلهجتك ويقف إلى جانبك",
-    tagline: "اسأل، أرسل صورة محصولك... ودع الخبرة تأتي إليك.",
+    tagline: "خبيرٌ زراعيّ في جيبك، يفهم لهجتك.",
     url: `${PROD_URL}/copilot`, image: "/marketing/copilot.png",
     caption: "📸 [مكان لقطة الشاشة: مساحة المحادثة متعددة الوكلاء]",
     points: [
-      "محادثة باللهجة السورية مع فريق وكلاء متخصّص يعمل معاً",
-      "تحليل بصري لأمراض النبات من صورة واحدة فقط",
-      "توصيات عملية مدعومة بالمراجع الزراعية الموثوقة",
+      "كنت تنتظر المهندس أياماً؟ الآن تسأل فتأتيك الإجابة في ثوانٍ، بلهجتك.",
+      "ظهرت بقعةٌ غريبة على نبتتك؟ صوّرها، فيشخّص لك المرض من صورةٍ واحدة.",
+      "كنت تشكّ في صحّة النصيحة؟ كلّ توصيةٍ مستندةٌ إلى مراجع زراعية موثوقة.",
     ],
   },
   {
     id: "fields", icon: MapIcon, kicker: "سجلّ جغرافي", title: "كل حقلٍ له صوته... وبياناته الخاصة",
-    tagline: "نظّم أرضك رقمياً، وتابعها كأنّك تقف فوقها.",
+    tagline: "أرضك مرسومةٌ ومُراقَبة، حقلاً حقلاً.",
     url: `${PROD_URL}/fields`, image: "/marketing/fields.png",
     caption: "📸 [مكان لقطة الشاشة: خريطة الحقول ونظام GIS]",
     points: [
-      "تسجيل الحقول وربطها بالمحاصيل والمساحات بسهولة",
-      "متابعة كل حقل ببياناته المناخية الدقيقة",
-      "رؤية مكانية شاملة تجمع كامل أراضيك في مكان واحد",
+      "كنت تحفظ حدود حقولك في ذاكرتك؟ الآن كلّها مسجّلةٌ بإحداثياتها على الخريطة.",
+      "كنت تعامل أرضك كقطعةٍ واحدة؟ الآن لكلّ حقلٍ بياناته المناخية الخاصّة.",
+      "كنت تفقد تفاصيل المواسم؟ سجلٌّ جغرافيٌّ يجمع أراضيك كلّها في مكانٍ واحد.",
     ],
   },
   {
     id: "crops", icon: Sprout, kicker: "معرفة موثوقة", title: "موسوعة المحاصيل السورية في جيبك",
-    tagline: "علمٌ زراعيّ سوريّ موثوق... متاح لكل مزارع.",
+    tagline: "كلّ ما يحتاجه محصولك، بين يديك.",
     url: `${PROD_URL}/crops`, image: "/marketing/crops.png",
     caption: "📸 [مكان لقطة الشاشة: وحدة المحاصيل وحاسبة الإنتاجية]",
     points: [
-      "بيانات ١١ محصولاً سورياً وفق مرجعية GCSAR",
-      "إرشادات موسمية وحاسبة إنتاجية تفاعلية",
-      "مزامنة سياق المحصول عبر كامل المنصّة",
+      "كنت تبحث عن إرشادٍ موثوق؟ بيانات أحد عشر محصولاً سورياً وفق مرجعية GCSAR.",
+      "كنت تقدّر الإنتاج بالحدس؟ حاسبةٌ تفاعلية تعطيك الرقم قبل أن تزرع.",
+      "كنت تنسى مواعيد الموسم؟ إرشاداتٌ موسمية تذكّرك بالخطوة الصحيحة في وقتها.",
     ],
   },
   {
     id: "market", icon: TrendingUp, kicker: "ذكاء الأسواق", title: "بِع في الوقت المناسب... وبالسعر الذي تستحقّه",
-    tagline: "السوق بين يديك، والقرار الرابح لك.",
+    tagline: "لا تبِع بأقلّ ممّا يستحقّ تعبك.",
     url: `${PROD_URL}/dashboard/market`, image: "/marketing/market.png",
     caption: "📸 [مكان لقطة الشاشة: تحليلات السوق واتجاهات الأسعار]",
     points: [
-      "أسعار المحاصيل واتجاهاتها الأسبوعية لحظةً بلحظة",
-      "مقارنة إنتاجية المحافظات السورية",
-      "توصية ذكية بأفضل نافذة للبيع تحمي دخلك",
+      "كنت تبيع وأنت تجهل السعر العادل؟ الآن أسعار محصولك أمامك أسبوعياً.",
+      "كنت تتساءل أين السعر أفضل؟ قارن إنتاج المحافظات واختر سوقك بثقة.",
+      "كنت تبيع في توقيتٍ خاطئ؟ توصيةٌ ذكية تدلّك على أفضل نافذةٍ للبيع.",
     ],
   },
   {
     id: "community", icon: Users, kicker: "مجتمع مزارعي أغرو-سوريا", title: "نبض الأرض.. مجتمع يجمعنا",
-    tagline: "تبادل الخبرات، واجه التحديات، وشارك نجاحك مع آلاف المزارعين السوريين في منصة تفاعلية واحدة.",
+    tagline: "لن تواجه أرضك وحدك بعد اليوم.",
     url: `${PROD_URL}/community`, image: "/marketing/community.png",
     caption: "📸 [مكان لقطة الشاشة: مجتمع المزارعين التفاعلي]",
     points: [
-      "تواصل مباشر: طرح الأسئلة والحصول على إجابات من خبراء ومزارعين محليين",
-      "مشاركة التجارب: تبادل النصائح حول مكافحة الآفات وتحسين جودة المواسم السورية",
-      "تعاون وطني: بناء علاقات تجارية وتكامل زراعي بين جميع المحافظات",
+      "واجهتك مشكلةٌ لم تعرف حلّها؟ اسأل، فيجيبك خبراء ومزارعون عاشوا التجربة.",
+      "اكتشفت طريقةً نجحت معك؟ شاركها، وانفع بها آلاف المزارعين السوريين.",
+      "كنت تعمل في عزلة؟ شبكةٌ وطنية تربط المحافظات بالخبرة والتجارة.",
     ],
   },
   {
     id: "news", icon: Newspaper, kicker: "الأخبار والقرارات · قريباً", title: "أخبار ومواسم الزراعة.. لحظة بلحظة (قريباً)",
-    tagline: "ابق على اطلاع دائم بآخر القرارات الحكومية، أسعار السماد والوقود، والتحذيرات المناخية العاجلة.",
+    tagline: "كلّ قرارٍ يخصّ أرضك، يصلك أوّلاً.",
     url: `${PROD_URL}/news`, image: "/marketing/news.png",
     caption: "📸 [مكان لقطة الشاشة: لوحة الأخبار والقرارات الزراعية]",
     points: [
-      "قرارات رسمية: رصد مباشر لقرارات وزارة الزراعة والجهات المعنية فور صدورها",
-      "تنبيهات عاجلة: إشعارات استباقية بالصقيع، الرياح الشديدة، أو مواسم انتشار الأوبئة",
-      "أسعار المدخلات: تحديثات يومية وموثوقة لأسعار السوق المحلية لضمان تخطيط اقتصادي سليم",
+      "كنت آخر من يعلم بالقرارات؟ قريباً ترصد قرارات وزارة الزراعة فور صدورها.",
+      "باغتتك الأسعار في السوق؟ قريباً تتابع أسعار السماد والوقود يوماً بيوم.",
+      "فاجأك الطقس القاسي؟ قريباً تنبيهاتٌ استباقية بالصقيع والرياح وانتشار الأوبئة.",
     ],
   },
 ];
@@ -367,6 +367,217 @@ const TRUST = [
   { icon: Zap,         title: "لا تتوقّف أبداً", desc: "تعمل بثبات حتى عند انقطاع الخدمات الخارجية، فلا تُترك وحدك." },
   { icon: Heart,       title: "دقّة تستحقّ الثقة", desc: "كل توصية تمرّ بفحص جودة دقيق قبل أن تصل إليك." },
 ];
+
+/* ═════════════════════════════════════════════════════════════════════════
+   EXPORT COMPOSITIONS — purpose-built layouts authored at the target pixel
+   size (NO downscaling), with enforced minimum readable font sizes. Solid
+   inline colors (no glass/blur/oklch-dependence) so html-to-image captures
+   cleanly. Shared text constants mirror the on-screen copy.
+   ═════════════════════════════════════════════════════════════════════════ */
+const EC = {
+  title: "#F4FBF6",
+  tagline: "#6EE7B7",
+  body: "rgba(244,251,246,0.90)",
+  muted: "rgba(176,201,186,0.78)",
+  emerald: "#10B981",
+  chipBg: "rgba(16,185,129,0.12)",
+  chipBorder: "rgba(16,185,129,0.30)",
+  panel: "rgba(255,255,255,0.045)",
+  panelBorder: "rgba(255,255,255,0.09)",
+} as const;
+
+const EXPORT_BG = "linear-gradient(135deg, #0D2018 0%, #0A1F14 40%, #061510 70%, #0D1A0E 100%)";
+
+const INTRO_COPY = {
+  pre: "أرضُك تستحقّ قراراً أذكى — و",
+  hi: "الذكاء الاصطناعي",
+  post: " الآن في يد كلّ مزارعٍ سوري.",
+  subtitle: "منصّة ذكية بصناعة وخبرات سورية وطنية مخلصة — يبنيها شباب سوريا في الداخل والمهجر، بإيمانٍ راسخ بأنّ أرضنا تستحقّ أحدث ما وصل إليه العالم.",
+  chips: ["زراعة ذكية", "وكلاء متعدّدون", "بخبرات سورية وطنية"],
+};
+const PROBLEM_COPY = {
+  headline: "من التخمين والقلق... إلى قرارٍ تطمئنّ إليه",
+  reality: ["بياناتٌ مبعثرة بين الورق والذاكرة، وقرارٌ مبنيٌّ على التخمين.", "الطقس يباغتك، والآفة تنتشر قبل أن تنتبه.", "أحدث الأبحاث بعيدةٌ عنك، والخبرة تصل متأخّرة."],
+  solution: ["كلّ بياناتك موحّدةٌ ومحلّلة في مكانٍ واحد، فوراً.", "إنذارٌ مبكر يسبق الطقس والآفة بخطوة.", "توصيةٌ عملية بلغتك، مستندةٌ إلى مراجع موثوقة."],
+};
+const TRUST_HEADLINE = "بياناتك محميّة... وخدمتك لا تتوقّف";
+const CTA_COPY = {
+  pre: "انضمّ إلى ",
+  hi: "ثورة الزراعة الذكية",
+  subtitle: "منصّة سورية وطنية، قابلة للتوسّع، تخدم كل مزارع — جرّبها الآن مباشرةً على الإنترنت.",
+};
+
+// Minimum readable font floors (px) — title ≥44, tagline ≥30, bullet ≥26 at 1080-wide.
+function exportSizes(fmt: ImageFormat) {
+  if (fmt.vertical)  return { title: 58, tagline: 36, bullet: 30, kicker: 22, gap: 26 };
+  if (fmt.h <= 700)  return { title: 46, tagline: 30, bullet: 26, kicker: 18, gap: 16 }; // linkedin/facebook (short)
+  return { title: 64, tagline: 40, bullet: 32, kicker: 22, gap: 22 };                    // twitter
+}
+type ExportSizes = ReturnType<typeof exportSizes>;
+
+function ExportShot({ image, url }: { image: string; url: string }) {
+  return (
+    <div style={{ width: "100%", height: "100%", borderRadius: 20, overflow: "hidden", display: "flex", flexDirection: "column",
+      border: "1px solid rgba(201,168,76,0.22)", background: "#0A1410", boxShadow: "0 24px 60px -18px rgba(0,0,0,0.65)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 16px", flexShrink: 0,
+        background: "#0E1A14", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <span style={{ width: 12, height: 12, borderRadius: 99, background: "#FF5F56" }} />
+        <span style={{ width: 12, height: 12, borderRadius: 99, background: "#FFBD2E" }} />
+        <span style={{ width: 12, height: 12, borderRadius: 99, background: "#27C93F" }} />
+        <span style={{ marginInlineStart: "auto", fontSize: 13, color: "rgba(167,196,180,0.55)", direction: "ltr", fontFamily: "ui-monospace, monospace" }}>{url}</span>
+      </div>
+      {/* same-origin /public asset → no crossOrigin (would force CORS + fail) */}
+      <img src={image} alt="" style={{ width: "100%", flex: 1, minHeight: 0, objectFit: "cover", objectPosition: "top", display: "block" }} />
+    </div>
+  );
+}
+
+function EBullet({ text, sz }: { text: string; sz: ExportSizes }) {
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <span style={{ flexShrink: 0, marginTop: sz.bullet * 0.5, width: 12, height: 12, borderRadius: 99, background: EC.emerald }} />
+      <span style={{ fontSize: sz.bullet, lineHeight: 1.5, color: EC.body, fontWeight: 600 }}>{text}</span>
+    </div>
+  );
+}
+
+function FeatureExport({ f, sz, isV, fmt }: { f: Feature; sz: ExportSizes; isV: boolean; fmt: ImageFormat }) {
+  const kicker  = <span style={{ alignSelf: "flex-start", fontSize: sz.kicker, fontWeight: 800, color: EC.tagline, background: EC.chipBg, border: `1px solid ${EC.chipBorder}`, borderRadius: 999, padding: "8px 18px" }}>{f.kicker}</span>;
+  const title   = <h2 style={{ fontSize: sz.title, fontWeight: 900, color: EC.title, lineHeight: 1.15, margin: 0 }}>{f.title}</h2>;
+  const tagline = <p style={{ fontSize: sz.tagline, fontWeight: 700, color: EC.tagline, lineHeight: 1.4, margin: 0 }}>{f.tagline}</p>;
+  const bullets = <div style={{ display: "flex", flexDirection: "column", gap: sz.gap * 0.7 }}>{f.points.map((p, i) => <EBullet key={i} text={p} sz={sz} />)}</div>;
+  const shot    = <ExportShot image={f.image} url={f.url} />;
+
+  if (isV) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: sz.gap, height: "100%" }}>
+        {kicker}{title}{tagline}
+        <div style={{ flex: 1, minHeight: fmt.h * 0.40 }}>{shot}</div>
+        {bullets}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "row", gap: 40, height: "100%", alignItems: "stretch" }}>
+      <div style={{ flex: "0 0 40%", display: "flex", flexDirection: "column", gap: sz.gap, justifyContent: "center" }}>
+        {kicker}{title}{tagline}{bullets}
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>{shot}</div>
+    </div>
+  );
+}
+
+function IntroExport({ sz }: { sz: ExportSizes }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", height: "100%", gap: sz.gap }}>
+      <img src="/assets/agro-syria-logo.svg" alt="" style={{ width: "46%", maxWidth: 360, height: "auto" }} />
+      <h1 style={{ fontSize: sz.title * 1.05, fontWeight: 900, color: EC.title, lineHeight: 1.2, margin: 0, maxWidth: "92%" }}>
+        {INTRO_COPY.pre}<span style={{ color: EC.tagline }}>{INTRO_COPY.hi}</span>{INTRO_COPY.post}
+      </h1>
+      <p style={{ fontSize: sz.tagline * 0.9, color: EC.muted, lineHeight: 1.6, margin: 0, maxWidth: "86%" }}>{INTRO_COPY.subtitle}</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+        {INTRO_COPY.chips.map((c, i) => (
+          <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: sz.bullet * 0.8, fontWeight: 800, color: EC.tagline, background: EC.chipBg, border: `1px solid ${EC.chipBorder}`, borderRadius: 999, padding: "8px 18px" }}>
+            {c}{i === 2 && <img src="/assets/syria-flag.svg" alt="" style={{ width: 26, height: 17, borderRadius: 2 }} />}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProblemExport({ sz, isV }: { sz: ExportSizes; isV: boolean }) {
+  const Panel = (heading: string, items: string[], accent: string) => (
+    <div style={{ flex: 1, background: EC.panel, border: `1px solid ${EC.panelBorder}`, borderRadius: 24, padding: 28, display: "flex", flexDirection: "column", gap: 18 }}>
+      <h3 style={{ fontSize: sz.tagline, fontWeight: 900, color: EC.title, margin: 0 }}>{heading}</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {items.map((t, i) => (
+          <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span style={{ flexShrink: 0, marginTop: sz.bullet * 0.5, width: 11, height: 11, borderRadius: 99, background: accent }} />
+            <span style={{ fontSize: sz.bullet, lineHeight: 1.5, color: EC.body }}>{t}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: sz.gap }}>
+      <h2 style={{ fontSize: sz.title, fontWeight: 900, color: EC.title, textAlign: "center", lineHeight: 1.2, margin: 0 }}>{PROBLEM_COPY.headline}</h2>
+      <div style={{ flex: 1, display: "flex", flexDirection: isV ? "column" : "row", gap: 22 }}>
+        {Panel("الواقع اليوم", PROBLEM_COPY.reality, "#F87171")}
+        {Panel("الحل", PROBLEM_COPY.solution, EC.emerald)}
+      </div>
+    </div>
+  );
+}
+
+function TrustExport({ sz, isV }: { sz: ExportSizes; isV: boolean }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: sz.gap, justifyContent: "center" }}>
+      <h2 style={{ fontSize: sz.title, fontWeight: 900, color: EC.title, textAlign: "center", lineHeight: 1.2, margin: 0 }}>{TRUST_HEADLINE}</h2>
+      <div style={{ display: "flex", flexDirection: isV ? "column" : "row", gap: 20 }}>
+        {TRUST.map(({ icon: Icon, title, desc }) => (
+          <div key={title} style={{ flex: 1, background: EC.panel, border: `1px solid ${EC.panelBorder}`, borderRadius: 24, padding: 28, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12 }}>
+            <span style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(16,185,129,0.12)", border: `1px solid ${EC.chipBorder}`, display: "flex", alignItems: "center", justifyContent: "center", color: EC.emerald }}>
+              <Icon style={{ width: 28, height: 28 }} />
+            </span>
+            <h3 style={{ fontSize: sz.tagline, fontWeight: 900, color: EC.title, margin: 0 }}>{title}</h3>
+            <p style={{ fontSize: sz.bullet, lineHeight: 1.5, color: EC.body, margin: 0 }}>{desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CtaExport({ sz }: { sz: ExportSizes }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", height: "100%", gap: sz.gap }}>
+      <img src="/assets/agro-syria-mark.svg" alt="" style={{ height: sz.title * 1.4, width: "auto" }} />
+      <h2 style={{ fontSize: sz.title * 1.05, fontWeight: 900, color: EC.title, lineHeight: 1.2, margin: 0, maxWidth: "90%" }}>
+        {CTA_COPY.pre}<span style={{ color: EC.tagline }}>{CTA_COPY.hi}</span>
+      </h2>
+      <p style={{ fontSize: sz.tagline * 0.9, color: EC.muted, lineHeight: 1.6, margin: 0, maxWidth: "82%" }}>{CTA_COPY.subtitle}</p>
+      <span style={{ fontSize: sz.tagline, fontWeight: 900, color: "#06281A", background: EC.emerald, borderRadius: 999, padding: "16px 40px", direction: "ltr", fontFamily: "ui-monospace, monospace" }}>{PROD_URL}</span>
+    </div>
+  );
+}
+
+type ExportSlide =
+  | { kind: "intro" }
+  | { kind: "problem" }
+  | { kind: "feature"; feature: Feature }
+  | { kind: "trust" }
+  | { kind: "cta" };
+
+// Order MUST mirror buildSlides(): intro, problem, …features, trust, cta.
+const EXPORT_SLIDES: ExportSlide[] = [
+  { kind: "intro" },
+  { kind: "problem" },
+  ...FEATURES.map((feature): ExportSlide => ({ kind: "feature", feature })),
+  { kind: "trust" },
+  { kind: "cta" },
+];
+
+/** The capturable node: a slide composed at the platform's exact pixel size. */
+function ExportComposition({ slide, fmt, nodeRef }: { slide: ExportSlide; fmt: ImageFormat; nodeRef: React.Ref<HTMLDivElement> }) {
+  const sz = exportSizes(fmt);
+  const isV = fmt.vertical;
+  return (
+    <div ref={nodeRef} dir="rtl" className="font-arabic"
+      style={{ position: "relative", width: fmt.w, height: fmt.h, overflow: "hidden", boxSizing: "border-box",
+        padding: isV ? 64 : 52, background: EXPORT_BG }}>
+      <DeckOverlay />
+      <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%" }}>
+        {slide.kind === "feature" && <FeatureExport f={slide.feature} sz={sz} isV={isV} fmt={fmt} />}
+        {slide.kind === "intro"   && <IntroExport sz={sz} />}
+        {slide.kind === "problem" && <ProblemExport sz={sz} isV={isV} />}
+        {slide.kind === "trust"   && <TrustExport sz={sz} isV={isV} />}
+        {slide.kind === "cta"     && <CtaExport sz={sz} />}
+      </div>
+    </div>
+  );
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Slide builders
@@ -382,7 +593,7 @@ function buildSlides(): React.ReactNode[] {
         className="w-56 sm:w-72 md:w-80 h-auto drop-shadow-[0_10px_34px_oklch(0.696_0.170_162/_0.30)]"
       />
       <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-foreground leading-tight tracking-tight max-w-4xl">
-        أغرو-سوريا: ثورة <span className="text-emerald-gradient">الذكاء الاصطناعي</span> مكرّسة لخدمة المزارع والمستقبل
+        أرضُك تستحقّ قراراً أذكى — و<span className="text-emerald-gradient">الذكاء الاصطناعي</span> الآن في يد كلّ مزارعٍ سوري.
       </h1>
       <p className="text-lg sm:text-2xl text-muted-foreground font-arabic leading-relaxed max-w-3xl">
         منصّة ذكية <span className="text-foreground/90 font-bold">بصناعة وخبرات سورية وطنية مخلصة</span> —
@@ -409,7 +620,7 @@ function buildSlides(): React.ReactNode[] {
     <div key="problem" className="flex flex-col gap-6">
       <div className="text-center">
         <Kicker icon={Sparkles} text="التحدّي والحل" />
-        <h2 className="mt-3 text-3xl sm:text-5xl font-black text-foreground tracking-tight leading-tight">من فوضى البيانات... إلى قرارٍ يصنع الفرق</h2>
+        <h2 className="mt-3 text-3xl sm:text-5xl font-black text-foreground tracking-tight leading-tight">من التخمين والقلق... إلى قرارٍ تطمئنّ إليه</h2>
       </div>
       <div className="grid md:grid-cols-2 gap-5">
         <div className="glass-card rounded-3xl p-7 space-y-5">
@@ -420,7 +631,7 @@ function buildSlides(): React.ReactNode[] {
             <h3 className="text-2xl font-black text-foreground">الواقع اليوم</h3>
           </div>
           <ul className="space-y-4">
-            {["بيانات زراعية مبعثرة وغير موثوقة", "مخاطر مناخية متصاعدة دون إنذار مبكر", "فجوة معرفية بين المزارع وأحدث الأبحاث"].map(t => (
+            {["بياناتٌ مبعثرة بين الورق والذاكرة، وقرارٌ مبنيٌّ على التخمين.", "الطقس يباغتك، والآفة تنتشر قبل أن تنتبه.", "أحدث الأبحاث بعيدةٌ عنك، والخبرة تصل متأخّرة."].map(t => (
               <li key={t} className="flex items-start gap-3">
                 <span className="mt-2.5 w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
                 <span className="text-lg sm:text-xl text-foreground/85 leading-relaxed font-arabic">{t}</span>
@@ -436,7 +647,7 @@ function buildSlides(): React.ReactNode[] {
             <h3 className="text-2xl font-black text-foreground">حلّنا السوري الذكي</h3>
           </div>
           <ul className="space-y-4">
-            {["منظومة وكلاء ذكية توحّد البيانات وتحلّلها فوراً", "إنذارات استباقية للطقس والآفات قبل وقوع الضرر", "توصيات عملية بلهجة المزارع ومستندة للمراجع"].map(t => (
+            {["كلّ بياناتك موحّدةٌ ومحلّلة في مكانٍ واحد، فوراً.", "إنذارٌ مبكر يسبق الطقس والآفة بخطوة.", "توصيةٌ عملية بلغتك، مستندةٌ إلى مراجع موثوقة."].map(t => (
               <li key={t} className="flex items-start gap-3">
                 <span className="mt-2.5 w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
                 <span className="text-lg sm:text-xl text-foreground/90 leading-relaxed font-arabic">{t}</span>
@@ -564,103 +775,56 @@ export default function MarketingSlidesPage() {
   const total = slides.length;
   const [[index, dir], setState] = useState<[number, number]>([0, 0]);
   const [format, setFormat] = useState<DeckFormat>("landscape");
-  const [capture, setCapture] = useState<ImageFormat | null>(null);
+  const [preview, setPreview] = useState<ImageFormat | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [vp, setVp] = useState({ w: 1280, h: 800 });
   const stageRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
 
-  const exportSlide = useCallback((fmt: ImageFormat) => {
-    if (busy) return;
-    setBusy(true);
-    setCapture(fmt); // renders the off-screen capture stage → effect rasterizes it
-  }, [busy]);
-
-  // Capture the active slide into the chosen aspect ratio, then download + restore.
+  // Track the viewport so the preview can be scaled to fit any screen.
   useEffect(() => {
-    if (!capture) return;
-    console.log("[export] effect fired", capture?.id);
-    let cancelled = false;
-    const nextFrame = () => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    const update = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
-    (async () => {
-      // FIX 2B — give React a full render cycle to mount + paint the fixed
-      // stage before we read stageRef (the effect fires before it's mounted).
-      await new Promise<void>(r => setTimeout(r, 150));
-      console.log("[export] stage mounted?", !!stageRef.current,
-        stageRef.current?.offsetWidth, stageRef.current?.offsetHeight);
+  const openPreview = useCallback((fmt: ImageFormat) => setPreview(fmt), []);
 
-      const stage = stageRef.current;
-      const content = contentRef.current;
-      if (!stage || !content) { setBusy(false); setCapture(null); return; }
-
-      // Force the browser to composite the fixed element.
-      await nextFrame();
-      // FIX 2C — wait for all images inside the stage to finish loading.
+  // Capture the live preview node (already on-screen at full size) → download PNG.
+  const runCapture = useCallback(async () => {
+    const fmt = preview;
+    const stage = stageRef.current;
+    if (!fmt || !stage || busy) return;
+    setBusy(true);
+    try {
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      // Wait for screenshots + fonts to load (prevents a blank export).
       const imgs = Array.from(stage.querySelectorAll("img"));
       await Promise.all(imgs.map(img =>
-        img.complete
-          ? img.decode().catch(() => {})
-          : new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); })
+        img.complete ? img.decode().catch(() => {}) : new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); })
       ));
       await document.fonts.ready;
-
-      // BUG 3 — fit by width against the FIXED frame height; the content box
-      // clips any vertical overflow (height + overflow:hidden in its style).
-      const availW = capture.w - capture.padX * 2;
-      const availH = capture.h - capture.padY * 2;
-      const cw = capture.designW;
-      const ch = capture.h - capture.padY * 2; // fixed, not scrollHeight
-      const scale = Math.min(availW / cw, availH / ch, 1.0); // cap at 1.0
-      content.style.transform = `scale(${scale})`;
-      await nextFrame();
-
-      // BUG 3 — overflow guard: shrink any text box that overflows its own height.
-      const textEls = Array.from(
-        stage.querySelectorAll("p, h1, h2, h3, li, span")
-      ) as HTMLElement[];
-      let reduced = false;
-      for (const el of textEls) {
-        let size = parseFloat(getComputedStyle(el).fontSize);
-        while (el.scrollHeight > el.clientHeight + 2 && size > 12) {
-          size -= 1;
-          el.style.fontSize = size + "px";
-          reduced = true;
-        }
-      }
-      // One more frame after font shrink.
-      await new Promise<void>(r => requestAnimationFrame(() => r()));
-
-      // CRITICAL — resolve oklch() → rgb so the foreignObject doesn't rasterize blank.
+      // Resolve oklch() → rgb so the foreignObject never rasterizes blank.
       flattenColorsForCapture(stage);
-      await nextFrame();
-
-      try {
-        // FIX 2D — double render (html-to-image blank-first-frame quirk). No
-        // backgroundColor: let the DOM gradient + overlay show through.
-        console.log("[export] capturing...");
-        const opts = { pixelRatio: 2, cacheBust: true, width: capture.w, height: capture.h };
-        await toPng(stage, opts);                  // prime pass — discarded
-        const dataUrl = await toPng(stage, opts);  // real capture
-        if (!cancelled) {
-          const link = document.createElement("a");
-          link.download = `agro-syria-slide-${index + 1}-${capture.id}.png`;
-          link.href = dataUrl;
-          link.click();
-          if (reduced) {
-            setToast("تم تصغير الخط تلقائياً للملاءمة");
-            window.setTimeout(() => setToast(null), 3200);
-          }
-        }
-      } catch (err) {
-        console.error("تعذّر إنشاء صورة الشريحة:", err);
-      } finally {
-        if (!cancelled) { setBusy(false); setCapture(null); }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [capture, index]);
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+      const opts = { pixelRatio: 2, cacheBust: true, width: fmt.w, height: fmt.h };
+      await toPng(stage, opts);                  // prime pass — discarded
+      const dataUrl = await toPng(stage, opts);  // real capture
+      const link = document.createElement("a");
+      link.download = `agro-syria-slide-${index + 1}-${fmt.id}.png`;
+      link.href = dataUrl;
+      link.click();
+      setToast("تم حفظ الصورة ✓");
+      window.setTimeout(() => setToast(null), 2600);
+    } catch (err) {
+      console.error("تعذّر إنشاء صورة الشريحة:", err);
+      setToast("تعذّر الحفظ — حاول مجدداً");
+      window.setTimeout(() => setToast(null), 2600);
+    } finally {
+      setBusy(false);
+    }
+  }, [preview, busy, index]);
 
   const go = useCallback((d: number) => {
     setState(([i]) => [Math.min(Math.max(i + d, 0), total - 1), d]);
@@ -729,7 +893,7 @@ export default function MarketingSlidesPage() {
         <DeckOverlay />
         {/* Per-slide image export overlay */}
         <div className="absolute top-3 end-3 z-30 print:hidden">
-          <ImageExportMenu onExport={exportSlide} busy={busy} />
+          <ImageExportMenu onExport={openPreview} busy={busy} />
         </div>
         <AnimatePresence mode="wait" custom={dir}>
           <motion.section
@@ -798,49 +962,73 @@ export default function MarketingSlidesPage() {
         )}
       </AnimatePresence>
 
-      {/* Off-screen capture stage — rasterized by html-to-image, then removed */}
-      {capture && (
-        <div
-          ref={stageRef}
-          dir="rtl"
-          className={cn("capture-stage", capture.vertical ? "is-vertical" : "is-landscape")}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: capture.w,
-            height: capture.h,
-            // NOTE: not opacity:0 — html-to-image copies the root's computed
-            // opacity into the clone, so opacity:0 renders a transparent (empty)
-            // PNG. zIndex:-1 hides it behind the opaque deck UI while still
-            // compositing it so the capture is non-blank.
-            pointerEvents: "none",
-            zIndex: -1,
-            overflow: "hidden",
-            padding: `${capture.padY}px ${capture.padX}px`,
-            background: typeof document !== "undefined" &&
-              (document.documentElement.classList.contains("light") ||
-               document.body.classList.contains("light"))
-              ? "#F5F7F5"
-              : "linear-gradient(135deg, #0D2018 0%, #0A1F14 40%, #061510 70%, #0D1A0E 100%)",
-          }}
-        >
-          <DeckOverlay />
-          <div
-            ref={contentRef}
-            className="cap-content"
-            style={{
-              width: capture.designW,
-              height: capture.h - capture.padY * 2,
-              overflow: "hidden",
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            {slides[index]}
-          </div>
-        </div>
-      )}
+      {/* Preview-before-download modal — the previewed node IS what gets captured */}
+      <AnimatePresence>
+        {preview && (() => {
+          const s = Math.min((vp.w * 0.92) / preview.w, (vp.h * 0.60) / preview.h, 1);
+          return (
+            <motion.div
+              className="deck-ui fixed inset-0 z-[80] flex items-center justify-center p-4 print:hidden"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} dir="rtl"
+            >
+              <button aria-label="إغلاق" className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                onClick={() => { if (!busy) setPreview(null); }} />
+              <motion.div
+                initial={{ scale: 0.96, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 16 }}
+                transition={{ duration: 0.24, ease: EASE }}
+                className="relative z-10 w-full max-w-[min(96vw,1180px)] max-h-[94dvh] overflow-y-auto glass-card rounded-3xl border border-emerald-500/20 p-4 sm:p-6"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-black text-foreground font-arabic truncate">معاينة قبل الحفظ — {preview.label}</h3>
+                    <p className="text-[11px] text-muted-foreground font-numeric" dir="ltr">شريحة {index + 1} · {preview.w} × {preview.h}px</p>
+                  </div>
+                  <button onClick={() => { if (!busy) setPreview(null); }} aria-label="إغلاق"
+                    className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
+                    <ArrowLeft className="w-4 h-4 text-muted-foreground -rotate-90" />
+                  </button>
+                </div>
+
+                {/* Live preview — scaled wrapper; inner node is full-size & captured */}
+                <div className="mx-auto rounded-xl overflow-hidden ring-1 ring-white/10" style={{ width: preview.w * s, height: preview.h * s }}>
+                  <div style={{ width: preview.w, height: preview.h, transform: `scale(${s})`, transformOrigin: "top left" }}>
+                    <ExportComposition slide={EXPORT_SLIDES[index]} fmt={preview} nodeRef={stageRef} />
+                  </div>
+                </div>
+
+                {/* Platform switcher */}
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  {IMAGE_FORMATS.map(f => {
+                    const I = f.Icon;
+                    const active = f.id === preview.id;
+                    return (
+                      <button key={f.id} onClick={() => { if (!busy) setPreview(f); }}
+                        className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold font-arabic transition-colors",
+                          active ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "border-white/10 text-muted-foreground hover:text-foreground")}>
+                        <I className="w-3.5 h-3.5" />{f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Actions */}
+                <div className="mt-4 flex items-center justify-center gap-2.5">
+                  <button onClick={runCapture} disabled={busy}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400 px-6 py-3 text-sm font-black font-arabic transition-colors emerald-glow-sm disabled:opacity-60">
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageDown className="w-4 h-4" />}
+                    {busy ? "جارٍ الحفظ…" : "تحميل الصورة"}
+                  </button>
+                  <button onClick={() => { if (!busy) setPreview(null); }}
+                    className="rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] px-5 py-3 text-sm font-semibold text-muted-foreground font-arabic transition-colors">
+                    إغلاق
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }
