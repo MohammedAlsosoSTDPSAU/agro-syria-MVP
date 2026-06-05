@@ -85,6 +85,35 @@ function DeckOverlay() {
   );
 }
 
+/**
+ * CRITICAL for export: Tailwind v4 uses oklch() colors, which html-to-image's
+ * SVG <foreignObject> rasterizer renders as BLANK. We resolve every element's
+ * computed colors to plain rgb (via a canvas 2D parser) and inline them before
+ * capture, eliminating oklch from the serialized styles.
+ */
+function flattenColorsForCapture(root: HTMLElement): void {
+  const probe = document.createElement("canvas").getContext("2d");
+  if (!probe) return;
+  const toRgb = (c: string): string => {
+    if (!c || c === "transparent" || c.startsWith("rgb") || c.startsWith("#")) return c;
+    try { probe.fillStyle = "#000000"; probe.fillStyle = c; return probe.fillStyle as string; }
+    catch { return c; }
+  };
+  const nodes: HTMLElement[] = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+  for (const el of nodes) {
+    const cs = getComputedStyle(el);
+    el.style.color = toRgb(cs.color);
+    el.style.backgroundColor = toRgb(cs.backgroundColor);
+    el.style.borderTopColor = toRgb(cs.borderTopColor);
+    el.style.borderRightColor = toRgb(cs.borderRightColor);
+    el.style.borderBottomColor = toRgb(cs.borderBottomColor);
+    el.style.borderLeftColor = toRgb(cs.borderLeftColor);
+    if (cs.backgroundImage && cs.backgroundImage.includes("oklch")) el.style.backgroundImage = "none";
+    if (cs.fill && cs.fill.includes("oklch")) el.style.fill = toRgb(cs.fill);
+    if (cs.stroke && cs.stroke.includes("oklch")) el.style.stroke = toRgb(cs.stroke);
+  }
+}
+
 /* Per-slide overlay: choose a platform layout and download the slide as a PNG. */
 function ImageExportMenu({ onExport, busy }: { onExport: (f: ImageFormat) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
@@ -601,6 +630,10 @@ export default function MarketingSlidesPage() {
       }
       // One more frame after font shrink.
       await new Promise<void>(r => requestAnimationFrame(() => r()));
+
+      // CRITICAL — resolve oklch() → rgb so the foreignObject doesn't rasterize blank.
+      flattenColorsForCapture(stage);
+      await nextFrame();
 
       try {
         // FIX 2D — double render (html-to-image blank-first-frame quirk). No
