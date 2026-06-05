@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, Camera, Sparkles, ArrowLeft,
@@ -59,14 +60,17 @@ function MacWindow({ url, image, caption }: { url: string; image: string; captio
       </div>
 
       {/* Screen — static screenshot, clipped flush to the frame's curves */}
-      <div className="relative aspect-[16/10] overflow-hidden rounded-b-xl bg-slate-950/40">
+      <div className="relative aspect-[16/9] overflow-hidden rounded-b-xl bg-slate-950/40">
         {!errored ? (
-          <img
+          <Image
             src={image}
             alt={caption}
-            loading="eager"
+            fill
+            quality={95}
+            priority
+            sizes="(max-width: 1024px) 100vw, 60vw"
             onError={() => setErrored(true)}
-            className="absolute inset-0 w-full h-full object-cover object-top rounded-b-xl"
+            className="object-cover object-top rounded-b-xl"
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
@@ -91,9 +95,9 @@ function MacWindow({ url, image, caption }: { url: string; image: string; captio
    ───────────────────────────────────────────────────────────────────────── */
 function Kicker({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/22 px-3.5 py-1.5">
-      <Icon className="w-3.5 h-3.5 text-emerald-400" />
-      <span className="text-[11px] font-bold text-emerald-300 font-arabic">{text}</span>
+    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/22 px-4 py-2">
+      <Icon className="w-4 h-4 text-emerald-400" />
+      <span className="text-sm sm:text-base font-bold text-emerald-300 font-arabic">{text}</span>
     </div>
   );
 }
@@ -101,13 +105,13 @@ function Kicker({ icon: Icon, text }: { icon: React.ElementType; text: string })
 /* Clean numbered highlights — no connector lines */
 function Highlights({ points }: { points: string[] }) {
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-4">
       {points.map((p, i) => (
-        <li key={i} className="flex items-start gap-3">
-          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-black flex items-center justify-center font-numeric">
+        <li key={i} className="flex items-start gap-3.5">
+          <span className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-black flex items-center justify-center font-numeric">
             {i + 1}
           </span>
-          <span className="text-sm sm:text-base text-foreground/85 leading-relaxed font-arabic pt-0.5">{p}</span>
+          <span className="text-lg sm:text-xl text-foreground/90 leading-relaxed font-arabic pt-0.5">{p}</span>
         </li>
       ))}
     </ul>
@@ -234,21 +238,29 @@ function buildSlides(): React.ReactNode[] {
 
   // 1 — Intro
   slides.push(
-    <div key="intro" className="flex flex-col items-center text-center gap-6">
+    <div key="intro" className="flex flex-col items-center text-center gap-7">
       <img
         src="/assets/agro-syria-logo.svg" alt="أغرو-سيريا" draggable={false}
-        className="w-48 sm:w-64 md:w-72 h-auto drop-shadow-[0_10px_34px_oklch(0.696_0.170_162/_0.30)]"
+        className="w-56 sm:w-72 md:w-80 h-auto drop-shadow-[0_10px_34px_oklch(0.696_0.170_162/_0.30)]"
       />
-      <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-foreground leading-snug max-w-3xl">
+      <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-foreground leading-tight tracking-tight max-w-4xl">
         أغرو-سوريا: ثورة <span className="text-emerald-gradient">الذكاء الاصطناعي</span> مكرّسة لخدمة المزارع والمستقبل
       </h1>
-      <p className="text-sm sm:text-lg text-muted-foreground font-arabic leading-relaxed max-w-2xl">
+      <p className="text-lg sm:text-2xl text-muted-foreground font-arabic leading-relaxed max-w-3xl">
         منصّة ذكية <span className="text-foreground/90 font-bold">بصناعة وخبرات سورية وطنية مخلصة</span> —
         يبنيها شباب سوريا في الداخل والمهجر، بإيمانٍ راسخ بأنّ أرضنا تستحقّ أحدث ما وصل إليه العالم.
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {["زراعة ذكية", "وكلاء متعدّدون", "بخبرات سورية وطنية 🇸🇾"].map(t => (
-          <span key={t} className="rounded-full bg-emerald-500/10 border border-emerald-500/22 px-4 py-1.5 text-xs font-bold text-emerald-300 font-arabic">{t}</span>
+      <div className="flex flex-wrap items-center justify-center gap-2.5">
+        {["زراعة ذكية", "وكلاء متعدّدون", "بخبرات سورية وطنية"].map((t, i) => (
+          <span key={t} className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/22 px-5 py-2 text-base sm:text-lg font-bold text-emerald-300 font-arabic">
+            {t}
+            {i === 2 && (
+              <img
+                src="/assets/syria-flag.svg" alt="علم سوريا" draggable={false}
+                className="w-7 h-[18.6px] rounded-[2px] object-cover ring-1 ring-white/20 shadow-sm flex-shrink-0"
+              />
+            )}
+          </span>
         ))}
       </div>
     </div>,
@@ -259,37 +271,37 @@ function buildSlides(): React.ReactNode[] {
     <div key="problem" className="flex flex-col gap-6">
       <div className="text-center">
         <Kicker icon={Sparkles} text="التحدّي والحل" />
-        <h2 className="mt-3 text-2xl sm:text-4xl font-black text-foreground">من فوضى البيانات... إلى قرارٍ يصنع الفرق</h2>
+        <h2 className="mt-3 text-3xl sm:text-5xl font-black text-foreground tracking-tight leading-tight">من فوضى البيانات... إلى قرارٍ يصنع الفرق</h2>
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="glass-card rounded-3xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-red-500/12 border border-red-500/25 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
+      <div className="grid md:grid-cols-2 gap-5">
+        <div className="glass-card rounded-3xl p-7 space-y-5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-11 h-11 rounded-xl bg-red-500/12 border border-red-500/25 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
             </div>
-            <h3 className="text-lg font-black text-foreground">الواقع اليوم</h3>
+            <h3 className="text-2xl font-black text-foreground">الواقع اليوم</h3>
           </div>
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {["بيانات زراعية مبعثرة وغير موثوقة", "مخاطر مناخية متصاعدة دون إنذار مبكر", "فجوة معرفية بين المزارع وأحدث الأبحاث"].map(t => (
-              <li key={t} className="flex items-start gap-2.5">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-foreground/80 leading-relaxed font-arabic">{t}</span>
+              <li key={t} className="flex items-start gap-3">
+                <span className="mt-2.5 w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+                <span className="text-lg sm:text-xl text-foreground/85 leading-relaxed font-arabic">{t}</span>
               </li>
             ))}
           </ul>
         </div>
-        <div className="glass-card rounded-3xl p-6 space-y-4 emerald-glow-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center">
-              <Bot className="w-4 h-4 text-emerald-400" />
+        <div className="glass-card rounded-3xl p-7 space-y-5 emerald-glow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-emerald-400" />
             </div>
-            <h3 className="text-lg font-black text-foreground">حلّنا السوري الذكي</h3>
+            <h3 className="text-2xl font-black text-foreground">حلّنا السوري الذكي</h3>
           </div>
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {["منظومة وكلاء ذكية توحّد البيانات وتحلّلها فوراً", "إنذارات استباقية للطقس والآفات قبل وقوع الضرر", "توصيات عملية بلهجة المزارع ومستندة للمراجع"].map(t => (
-              <li key={t} className="flex items-start gap-2.5">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-foreground/85 leading-relaxed font-arabic">{t}</span>
+              <li key={t} className="flex items-start gap-3">
+                <span className="mt-2.5 w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                <span className="text-lg sm:text-xl text-foreground/90 leading-relaxed font-arabic">{t}</span>
               </li>
             ))}
           </ul>
@@ -302,11 +314,11 @@ function buildSlides(): React.ReactNode[] {
   FEATURES.forEach((f) => {
     const Icon = f.icon;
     slides.push(
-      <div key={`feat-${f.id}`} className="grid lg:grid-cols-[1fr_1.35fr] gap-6 lg:gap-12 items-center">
-        <div className="order-2 lg:order-1 space-y-4">
+      <div key={`feat-${f.id}`} className="grid lg:grid-cols-[1fr_1.5fr] gap-6 lg:gap-12 items-center">
+        <div className="order-2 lg:order-1 space-y-5">
           <Kicker icon={Icon} text={f.kicker} />
-          <h2 className="text-xl sm:text-3xl font-black text-foreground leading-tight">{f.title}</h2>
-          <p className="text-base sm:text-lg text-emerald-300/90 font-arabic leading-relaxed">{f.tagline}</p>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-foreground leading-tight tracking-tight">{f.title}</h2>
+          <p className="text-xl sm:text-2xl text-emerald-300/90 font-arabic leading-relaxed font-bold">{f.tagline}</p>
           <div className="pt-1"><Highlights points={f.points} /></div>
         </div>
         <div className="order-1 lg:order-2">
@@ -321,21 +333,21 @@ function buildSlides(): React.ReactNode[] {
     <div key="trust" className="flex flex-col gap-7">
       <div className="text-center">
         <Kicker icon={ShieldCheck} text="أمان وموثوقية" />
-        <h2 className="mt-3 text-2xl sm:text-4xl font-black text-foreground leading-snug max-w-3xl mx-auto">
+        <h2 className="mt-3 text-3xl sm:text-5xl font-black text-foreground leading-tight tracking-tight max-w-4xl mx-auto">
           بياناتك محميّة... وخدمتك <span className="text-emerald-gradient">لا تتوقّف</span>
         </h2>
-        <p className="mt-3 text-sm sm:text-base text-muted-foreground font-arabic leading-relaxed max-w-2xl mx-auto">
+        <p className="mt-3 text-lg sm:text-xl text-muted-foreground font-arabic leading-relaxed max-w-2xl mx-auto">
           بنينا أغرو-سوريا على أساسٍ من الثقة — لأنّ المزارع يستحقّ أداةً يعتمد عليها كل يوم.
         </p>
       </div>
-      <div className="grid sm:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-3 gap-5">
         {TRUST.map(({ icon: Icon, title, desc }) => (
-          <div key={title} className="glass-card rounded-3xl p-6 flex flex-col items-center text-center gap-3 emerald-glow-sm">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center">
-              <Icon className="w-6 h-6 text-emerald-400" />
+          <div key={title} className="glass-card rounded-3xl p-7 flex flex-col items-center text-center gap-3.5 emerald-glow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center">
+              <Icon className="w-7 h-7 text-emerald-400" />
             </div>
-            <h3 className="text-base font-black text-foreground">{title}</h3>
-            <p className="text-sm text-foreground/75 font-arabic leading-relaxed">{desc}</p>
+            <h3 className="text-xl font-black text-foreground">{title}</h3>
+            <p className="text-lg text-foreground/80 font-arabic leading-relaxed">{desc}</p>
           </div>
         ))}
       </div>
@@ -347,11 +359,11 @@ function buildSlides(): React.ReactNode[] {
     <div key="cta" className="relative flex flex-col items-center text-center gap-7 glass-card rounded-[2rem] p-8 sm:p-14 overflow-hidden emerald-glow">
       <div className="absolute inset-0 bg-forest-mesh opacity-50 pointer-events-none" />
       <div className="relative flex flex-col items-center gap-7 w-full">
-        <img src="/assets/agro-syria-mark.svg" alt="أغرو-سيريا" draggable={false} className="h-12 w-auto" />
-        <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-foreground leading-snug max-w-3xl">
+        <img src="/assets/agro-syria-mark.svg" alt="أغرو-سيريا" draggable={false} className="h-14 w-auto" />
+        <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-foreground leading-tight tracking-tight max-w-4xl">
           انضمّ إلى <span className="text-emerald-gradient">ثورة الزراعة الذكية</span>
         </h2>
-        <p className="text-sm sm:text-lg text-muted-foreground font-arabic leading-relaxed max-w-2xl">
+        <p className="text-lg sm:text-2xl text-muted-foreground font-arabic leading-relaxed max-w-2xl">
           منصّة سورية وطنية، قابلة للتوسّع، تخدم كل مزارع — جرّبها الآن مباشرةً على الإنترنت.
         </p>
 
@@ -385,9 +397,9 @@ function buildSlides(): React.ReactNode[] {
             { icon: ShieldCheck, t: "بخبرات سورية موثوقة" },
             { icon: Sprout,      t: "أثرٌ مستدام للأجيال" },
           ].map(({ icon: Icon, t }) => (
-            <div key={t} className="rounded-2xl bg-white/[0.04] border border-white/[0.07] p-4 flex flex-col items-center gap-2">
-              <Icon className="w-5 h-5 text-emerald-400" />
-              <span className="text-xs text-foreground/85 font-arabic leading-relaxed">{t}</span>
+            <div key={t} className="rounded-2xl bg-white/[0.04] border border-white/[0.07] p-5 flex flex-col items-center gap-2.5">
+              <Icon className="w-6 h-6 text-emerald-400" />
+              <span className="text-base text-foreground/85 font-arabic leading-relaxed">{t}</span>
             </div>
           ))}
         </div>

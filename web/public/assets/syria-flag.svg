@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40" role="img" aria-label="علم سوريا">
+  <defs>
+    <!-- Five-pointed star centered at origin, outer R=3.5 -->
+    <polygon id="syria-star"
+      points="0,-3.5 0.786,-1.0815 3.329,-1.0815 1.272,0.4132 2.057,2.8315 0,1.337 -2.057,2.8315 -1.272,0.4132 -3.329,-1.0815 -0.786,-1.0815"
+      fill="#CE1126" />
+    <clipPath id="syria-round"><rect width="60" height="40" rx="3" ry="3" /></clipPath>
+  </defs>
+  <g clip-path="url(#syria-round)">
+    <!-- Three equal horizontal bands: green / white / black -->
+    <rect x="0" y="0"      width="60" height="13.333" fill="#007A3D" />
+    <rect x="0" y="13.333" width="60" height="13.334" fill="#FFFFFF" />
+    <rect x="0" y="26.667" width="60" height="13.333" fill="#000000" />
+    <!-- Three red stars centered in the white band -->
+    <use href="#syria-star" transform="translate(15 20)" />
+    <use href="#syria-star" transform="translate(30 20)" />
+    <use href="#syria-star" transform="translate(45 20)" />
+  </g>
+</svg>

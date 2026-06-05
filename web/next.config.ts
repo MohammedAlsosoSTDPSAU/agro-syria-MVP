@@ -50,6 +50,8 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 86400,
+    // Next 16 requires non-default quality values to be allow-listed.
+    qualities: [75, 90, 95],
   },
 };
 
