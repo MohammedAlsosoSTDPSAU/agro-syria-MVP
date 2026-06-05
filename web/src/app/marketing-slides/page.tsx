@@ -17,6 +17,7 @@ import {
   LayoutDashboard, CloudSun, Bot, Map as MapIcon, Sprout, TrendingUp,
   ShieldCheck, Rocket, AlertTriangle, Globe, Zap, Heart, ExternalLink,
   Download, Users, Newspaper,
+  Monitor, Square, RectangleVertical, Smartphone,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeController";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,15 @@ type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
 
 const PROD_URL = "agro-syria.vercel.app";
+
+/* Export formats — each maps to a named @page size in globals.css (print). */
+type DeckFormat = "landscape" | "square" | "portrait" | "story";
+const FORMATS: { id: DeckFormat; label: string; Icon: React.ElementType }[] = [
+  { id: "landscape", label: "أفقي · لينكدإن و X",       Icon: Monitor },
+  { id: "square",    label: "مربّع 1:1 · إنستغرام",      Icon: Square },
+  { id: "portrait",  label: "عمودي 4:5 · إنستغرام",      Icon: RectangleVertical },
+  { id: "story",     label: "ستوري 9:16 · ريلز و واتساب", Icon: Smartphone },
+];
 
 /* ─────────────────────────────────────────────────────────────────────────
    Discord-inspired 3D glass window mockup — static screenshot, perfectly clipped
@@ -314,14 +324,14 @@ function buildSlides(): React.ReactNode[] {
   FEATURES.forEach((f) => {
     const Icon = f.icon;
     slides.push(
-      <div key={`feat-${f.id}`} className="grid lg:grid-cols-[1fr_1.5fr] gap-6 lg:gap-12 items-center">
-        <div className="order-2 lg:order-1 space-y-5">
+      <div key={`feat-${f.id}`} className="feat-slide grid lg:grid-cols-[1fr_1.5fr] gap-6 lg:gap-12 items-center">
+        <div className="feat-text order-2 lg:order-1 space-y-5">
           <Kicker icon={Icon} text={f.kicker} />
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-foreground leading-tight tracking-tight">{f.title}</h2>
           <p className="text-xl sm:text-2xl text-emerald-300/90 font-arabic leading-relaxed font-bold">{f.tagline}</p>
           <div className="pt-1"><Highlights points={f.points} /></div>
         </div>
-        <div className="order-1 lg:order-2">
+        <div className="feat-media order-1 lg:order-2">
           <MacWindow url={f.url} image={f.image} caption={f.caption} />
         </div>
       </div>,
@@ -423,6 +433,7 @@ export default function MarketingSlidesPage() {
   const slides = useMemo(() => buildSlides(), []);
   const total = slides.length;
   const [[index, dir], setState] = useState<[number, number]>([0, 0]);
+  const [format, setFormat] = useState<DeckFormat>("landscape");
 
   const go = useCallback((d: number) => {
     setState(([i]) => [Math.min(Math.max(i + d, 0), total - 1), d]);
@@ -445,7 +456,7 @@ export default function MarketingSlidesPage() {
   }, [go, jump, total]);
 
   return (
-    <div dir="rtl" className="marketing-deck relative flex flex-col h-[100dvh] w-full overflow-hidden bg-forest-mesh">
+    <div dir="rtl" className={cn("marketing-deck relative flex flex-col h-[100dvh] w-full overflow-hidden bg-forest-mesh", `fmt-${format}`)}>
       {/* Top utility control bar */}
       <header className="deck-ui flex items-center justify-between gap-3 px-4 sm:px-6 py-3 flex-shrink-0 z-20 border-b border-white/[0.06] bg-background/40 backdrop-blur-md print:hidden">
         <div className="flex items-center gap-2">
@@ -453,9 +464,24 @@ export default function MarketingSlidesPage() {
           <span className="text-xs text-muted-foreground/70 font-arabic hidden sm:inline">عرض تقديمي تسويقي</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground/60 font-numeric tabular-nums hidden sm:inline">
+          <span className="text-[11px] text-muted-foreground/60 font-numeric tabular-nums hidden md:inline">
             {index + 1} / {total}
           </span>
+
+          {/* Export-format selector — sets the PDF page size per social platform */}
+          <div className="flex items-center gap-0.5 rounded-xl glass-card p-0.5" title="صيغة تصدير PDF">
+            {FORMATS.map(({ id, label, Icon }) => (
+              <button
+                key={id} onClick={() => setFormat(id)} title={label} aria-label={label}
+                aria-pressed={format === id}
+                className={cn("flex items-center justify-center w-7 h-7 rounded-lg transition-colors",
+                  format === id ? "bg-emerald-500/20 text-emerald-300" : "text-muted-foreground hover:text-foreground")}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 text-emerald-950 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold font-arabic hover:bg-emerald-400 transition-colors emerald-glow-sm"

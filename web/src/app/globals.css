@@ -414,7 +414,12 @@ html, body { overflow-x: hidden; max-width: 100%; }
    is hidden; mesh/glows/colors print at full fidelity.
    ───────────────────────────────────────────────────────────────────── */
 @media print {
-  @page { size: A4 landscape; margin: 0; }
+  /* Default + named page sizes — selected per export format via the .fmt-* root class */
+  @page         { size: A4 landscape;  margin: 0; }
+  @page pgLand  { size: A4 landscape;  margin: 0; }
+  @page pgSquare{ size: 1080px 1080px; margin: 0; }  /* Instagram feed 1:1 */
+  @page pgPort  { size: 1080px 1350px; margin: 0; }  /* Instagram portrait 4:5 */
+  @page pgStory { size: 1080px 1920px; margin: 0; }  /* Stories / Reels 9:16 */
 
   /* Force the browser to print every colour exactly (flat, no auto-lighten) */
   .marketing-deck,
@@ -491,4 +496,33 @@ html, body { overflow-x: hidden; max-width: 100%; }
     break-after: auto;
     page-break-after: auto;
   }
+
+  /* ── Bind each export format to its named @page size ── */
+  .fmt-landscape .deck-print-page { page: pgLand; }
+  .fmt-square    .deck-print-page { page: pgSquare; }
+  .fmt-portrait  .deck-print-page { page: pgPort; }
+  .fmt-story     .deck-print-page { page: pgStory; }
+
+  /* ── Social formats: stack feature slides to one column, image on top ── */
+  .fmt-square .feat-slide,
+  .fmt-portrait .feat-slide,
+  .fmt-story .feat-slide {
+    grid-template-columns: 1fr !important;
+    gap: 1.75rem !important;
+    align-content: center;
+  }
+  .fmt-square .feat-media,
+  .fmt-portrait .feat-media,
+  .fmt-story .feat-media { order: -1 !important; }
+
+  /* Constrain content width so it sits comfortably inside the 1080px frame */
+  .fmt-square   .deck-print .deck-print-page > div,
+  .fmt-portrait .deck-print .deck-print-page > div { max-width: 980px !important; }
+  .fmt-story    .deck-print .deck-print-page > div { max-width: 900px !important; }
+
+  /* Tighter padding for the compact square frame, and a slight scale so the
+     image + title + bullets always fit the 1:1 page without spilling. */
+  .fmt-square .deck-print-page { padding: 4vh 6vw; }
+  .fmt-square .deck-print-page > div { zoom: 0.92; }
+  .fmt-story  .deck-print-page { padding: 4vh 7vw; }
 }
