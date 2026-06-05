@@ -205,9 +205,18 @@ const PROVINCES: Record<string, ProvinceProfile> = {
 
 // ── Intent detection ────────────────────────────────────────────────────
 
-type Intent = "province_overview" | "weather" | "market" | "irrigation" | "disease" | "trends" | "emergency" | "general";
+type Intent = "greeting" | "province_overview" | "weather" | "market" | "irrigation" | "disease" | "trends" | "emergency" | "general";
+
+// Short, greeting-only messages → Liaison short-circuit (no agronomy needed).
+// Note: avoid the ASCII \b word boundary — it does not match after Arabic letters.
+function isGreeting(msg: string): boolean {
+  const t = msg.trim().replace(/[!.؟?,،]/g, "").toLowerCase();
+  if (!t || t.split(/\s+/).length > 4) return false;
+  return /^(مرحبا|مرحبتين|اهلا|أهلا|أهلاً|اهلين|أهلين|هلا|سلام|السلام عليكم|صباح الخير|مساء الخير|هاي|hi|hello|hey)(\s|$)/.test(t);
+}
 
 function detectIntent(msg: string): Intent {
+  if (isGreeting(msg))                                                       return "greeting";
   if (/\[URGENT REPORT\]|\[بلاغ طارئ\]/.test(msg))                          return "emergency";
   if (/صدأ|بياض دقيق|لفح|أمراض|آفة|حشر|بق|عفن/.test(msg))                 return "disease";
   if (/خطة ري|جدول ري|مياه الري|رطوبة التربة|احتياج.*مياه|برنامج.*ري|ري.*محصول|محصول.*ري/.test(msg)) return "irrigation";
@@ -240,6 +249,9 @@ function detectCrop(msg: string): string | null {
 // ── Agent thoughts by intent ────────────────────────────────────────────
 
 const THOUGHTS: Record<Intent, AgentThought[]> = {
+  greeting: [
+    { agent: "liaison", role_ar: "وكيل التواصل", thought: "أرحّب بالمزارع وأهيّئ الجلسة للمساعدة...", is_status: false },
+  ],
   province_overview: [
     { agent: "weather",  role_ar: "وكيل الطقس",    thought: "أقرأ بيانات المحطات الجوية الإقليمية ومؤشرات الرياح...", is_status: false },
     { agent: "soil",     role_ar: "وكيل التربة",    thought: "أحلل نسب رطوبة التربة ومستويات pH ومؤشرات الخصوبة...", is_status: false },
@@ -576,6 +588,19 @@ function buildEmergencyReply(msg: string, province: string | null): string {
 }`;
 }
 
+function buildGreetingReply(ctx: UserContext): string {
+  const ctxPrefix = buildContextPrefix(ctx);
+  return `${ctxPrefix}أهلاً وسهلاً بك! 🌿 أنا مساعدك الزراعي الذكي في أغرو-سوريا، جاهز لخدمتك في كل ما يخص أرضك ومحصولك.
+
+كيف أقدر أساعدك اليوم؟ تقدر تسألني عن:
+• **الطقس الزراعي** وتوقعاته القريبة
+• **خطط الري** المُحسَّبة لمحصولك
+• **أسعار الأسواق** وأفضل وقت للبيع
+• **تشخيص الأمراض** والوقاية منها
+
+تفضّل، شو بتحب نبلّش فيه؟`;
+}
+
 function buildGeneralReply(msg: string, province: string | null, crop: string | null, ctx: UserContext): string {
   const ctxPrefix = buildContextPrefix(ctx);
   const opener    = province ? provinceOpener(province) + " " : "";
@@ -607,6 +632,9 @@ function buildLocalResponse(req: ChatRequest): ChatResponse {
   let viz: VisualizationData | null = null;
 
   switch (intent) {
+    case "greeting":
+      reply = buildGreetingReply(ctx);
+      break;
     case "province_overview": {
       const result = buildProvinceOverview(
         pName ?? "سوريا",

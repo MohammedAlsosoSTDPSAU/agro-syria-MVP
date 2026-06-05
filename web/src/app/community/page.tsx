@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot, BadgeCheck, Shield, Star, Brain,
@@ -896,6 +896,31 @@ function CommunityContent() {
   const [view,      setView]      = useState<PageView>("cases");
   const [showAsk,   setShowAsk]   = useState(false);
   const [cases, setCases]         = useState(FIELD_CASES);
+  const skipCasesWrite = useRef(true);
+
+  // Session-scoped persistence: survives refresh, resets when the tab closes.
+  // Hydrate once on mount (client only) so SSR markup matches and we avoid a
+  // hydration mismatch (initial render always uses the seed).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("agro_community_cases_v1");
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) setCases(parsed as FieldCase[]);
+      }
+    } catch { /* corrupt / unavailable — keep the seed */ }
+  }, []);
+
+  // Persist on every change (skip the initial mount write so it can't clobber
+  // freshly hydrated data before it lands).
+  useEffect(() => {
+    if (skipCasesWrite.current) { skipCasesWrite.current = false; return; }
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem("agro_community_cases_v1", JSON.stringify(cases));
+    } catch { /* quota / SSR — ignore */ }
+  }, [cases]);
 
   const handleTrustVote = (id: string) =>
     setCases(prev => prev.map(c => c.id === id ? { ...c, trustScore: c.trustScore + 1 } : c));
