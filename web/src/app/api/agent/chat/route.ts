@@ -49,7 +49,7 @@ interface ChatRequest {
 // GROQ_API_KEY is present; on any failure returns null and the handler
 // replies with a simple Arabic error message (no templates, no fallback).
 
-const GROQ_MODEL = "llama-3.1-8b-instant"; // fast/cheap tier via OpenAI-compatible API
+const GROQ_MODEL = "llama-3.3-70b-versatile"; // stronger Arabic quality via OpenAI-compatible API
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 const GROQ_SYSTEM_PROMPT = `أنت مهندس زراعي خبير في منصة "أغرو-سيريا"، مرجع استشاري متخصص في الزراعة السورية حصراً.
@@ -150,7 +150,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
       },
       body: JSON.stringify({
         model: GROQ_MODEL,
-        max_tokens: 500, // ~250 words + headroom; caps rambling responses
+        max_tokens: 700, // room for the full 4-section Arabic structure (~250 words)
         messages: [
           { role: "system", content: GROQ_SYSTEM_PROMPT },
           { role: "user", content: buildUserContent(req) },
