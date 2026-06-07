@@ -17,9 +17,9 @@ import { sendChatMessage, type AgentThought, type VisualizationData } from "@/li
 import { VisualWorkspace } from "@/components/workspace/VisualWorkspace";
 import { AgroLogo } from "@/components/icons/AgroLogo";
 import {
-  WeatherInsightCard, MarketForecastCard,
-  IrrigationPlanCard, DiseaseRiskCard,
-  NationalTrendCard, MiniSyriaMap,
+  // SmartCards temporarily disabled (content is hardcoded) — re-enable with real data:
+  // WeatherInsightCard, MarketForecastCard, IrrigationPlanCard, DiseaseRiskCard, NationalTrendCard,
+  MiniSyriaMap,
 } from "@/components/copilot/SmartCards";
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ interface Message {
 type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
 
-const STORAGE_MESSAGES  = "agro_copilot_v1_messages";
+const STORAGE_MESSAGES  = "agro_copilot_v2_messages";
 const STORAGE_SESSION   = "agro_copilot_v1_session";
 const STORAGE_KNOWLEDGE = "agro_copilot_v1_knowledge";
 const MAX_IMAGE_BYTES   = 5 * 1024 * 1024;
@@ -513,6 +513,10 @@ function MessageBubble({
             </div>
           )}
         </div>
+        {/* SmartCards disabled — their content is 100% hardcoded, which made
+            Groq's real answers look templated. detectSmartCard() still runs
+            (it drives the map province highlight); re-enable these once they
+            render from real data.
         {message.smartCard === "weather" && (
           <WeatherInsightCard city={message.smartCardMeta?.city} />
         )}
@@ -528,6 +532,7 @@ function MessageBubble({
         {message.smartCard === "trends" && (
           <NationalTrendCard province={message.smartCardMeta?.province} />
         )}
+        */}
         {message.time && (
           <span className="text-[10px] text-muted-foreground/40 font-numeric ps-1">{message.time}</span>
         )}

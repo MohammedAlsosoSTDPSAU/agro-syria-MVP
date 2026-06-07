@@ -115,10 +115,9 @@ function buildUserContent(req: ChatRequest): GroqContent {
 }
 
 async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
-  console.log("[chat] callGroq called");
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) { console.log("[chat] callGroq: no GROQ_API_KEY → null"); return null; }
-  if (!req.message?.trim() && !req.image_base64) { console.log("[chat] callGroq: empty input → null"); return null; }
+  if (!apiKey) return null;
+  if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer → fall through
 
   try {
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
@@ -137,11 +136,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
       }),
       signal: AbortSignal.timeout(25_000),
     });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.log("[chat] callGroq: Groq HTTP", res.status, "→ null |", errText.slice(0, 200));
-      return null; // quota / auth / server error → fall through to local engine
-    }
+    if (!res.ok) return null; // quota / auth / server error → fall through to local engine
 
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
@@ -149,8 +144,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
     };
 
     const reply = (data.choices?.[0]?.message?.content ?? "").trim();
-    if (!reply) { console.log("[chat] callGroq: empty reply → null"); return null; }
-    console.log("[chat] callGroq: success");
+    if (!reply) return null; // empty → fall through to local engine
 
     const usage = data.usage;
     return {
@@ -169,8 +163,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
         : null,
       visualization: null,
     };
-  } catch (e) {
-    console.log("[chat] callGroq: threw →", e instanceof Error ? e.message : String(e));
+  } catch {
     return null;
   }
 }
@@ -733,7 +726,6 @@ function buildGeneralReply(msg: string, province: string | null, crop: string | 
 // ── Main response builder ───────────────────────────────────────────────
 
 function buildLocalResponse(req: ChatRequest): ChatResponse {
-  console.log("[chat] falling to templates");
   const msg    = req.message;
   const intent = detectIntent(msg);
   const pName  = detectProvince(msg);
@@ -792,7 +784,6 @@ function buildLocalResponse(req: ChatRequest): ChatResponse {
 // ── Route handler ───────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  console.log("[chat] handler called, GROQ_API_KEY present:", !!process.env.GROQ_API_KEY);
   let body: ChatRequest;
   try {
     body = (await req.json()) as ChatRequest;
