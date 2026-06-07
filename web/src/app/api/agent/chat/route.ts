@@ -63,15 +63,15 @@ async function proxyFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
   }
 }
 
-// ── Gemini (OpenAI-compatible) direct call ──────────────────────────────
-// Runs when FastAPI is unreachable but a GOOGLE_GEMINI_API_KEY is present.
-// Calls Gemini via its OpenAI-compatible endpoint; on any failure returns
+// ── Groq (OpenAI-compatible) direct call ────────────────────────────────
+// Runs when FastAPI is unreachable but a GROQ_API_KEY is present.
+// Calls Groq via its OpenAI-compatible endpoint; on any failure returns
 // null so the caller falls through to the local template engine (safety net).
 
-const GEMINI_MODEL = "gemini-2.0-flash"; // fast/cheap tier via OpenAI-compatible API
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const GROQ_MODEL = "llama-3.1-8b-instant"; // fast/cheap tier via OpenAI-compatible API
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
-const GEMINI_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار زراعي ذكي متخصص في الزراعة السورية.
+const GROQ_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار زراعي ذكي متخصص في الزراعة السورية.
 
 - أجب دائماً باللغة العربية الفصحى المعيارية بأسلوب واضح ومهني.
 - اجعل إجاباتك دقيقة وعمليّة وقابلة للتطبيق، ومخصّصة للزراعة السورية ومحافظاتها (حلب، الحسكة، دير الزور، حمص، حماة، إدلب، اللاذقية، طرطوس، دمشق وريفها، درعا، الرقة، السويداء، القنيطرة)، مع مراعاة مناخ كل منطقة وتربتها ومحاصيلها.
@@ -113,7 +113,7 @@ function buildUserText(req: ChatRequest): string {
   return lines.join("\n");
 }
 
-type GeminiContent =
+type GroqContent =
   | string
   | Array<
       | { type: "text"; text: string }
@@ -121,8 +121,8 @@ type GeminiContent =
     >;
 
 // Builds the user turn content — a plain string, or a [image, text] parts array
-// when an image is attached so Gemini performs real vision analysis.
-function buildUserContent(req: ChatRequest): GeminiContent {
+// when an image is attached so the model performs real vision analysis.
+function buildUserContent(req: ChatRequest): GroqContent {
   const text = buildUserText(req);
   const url = req.image_base64 ? toImageDataUrl(req.image_base64) : null;
   if (!url) return text;
@@ -133,23 +133,23 @@ function buildUserContent(req: ChatRequest): GeminiContent {
   ];
 }
 
-async function callGemini(req: ChatRequest): Promise<ChatResponse | null> {
-  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer → fall through
 
   try {
-    const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: GEMINI_MODEL,
+        model: GROQ_MODEL,
         max_tokens: 800,
         messages: [
-          { role: "system", content: GEMINI_SYSTEM_PROMPT },
+          { role: "system", content: GROQ_SYSTEM_PROMPT },
           { role: "user", content: buildUserContent(req) },
         ],
       }),
@@ -814,8 +814,8 @@ export async function POST(req: NextRequest) {
   const proxied = await proxyFastAPI(body);
   if (proxied) return NextResponse.json(proxied);
 
-  // 2. Direct Gemini call (real LLM) when GOOGLE_GEMINI_API_KEY is present
-  const llm = await callGemini(body);
+  // 2. Direct Groq call (real LLM) when GROQ_API_KEY is present
+  const llm = await callGroq(body);
   if (llm) return NextResponse.json(llm);
 
   // 3. Smart local template engine — always succeeds (safety net)
