@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 
 // ── Shared types (mirror api.ts) ────────────────────────────────────────
 
@@ -64,14 +63,15 @@ async function proxyFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
   }
 }
 
-// ── Anthropic (Claude) direct call ──────────────────────────────────────
-// Runs when FastAPI is unreachable but an ANTHROPIC_API_KEY is present.
-// Returns a real, dynamic LLM reply; on any failure returns null so the
-// caller falls through to the local template engine (safety net).
+// ── Gemini (OpenAI-compatible) direct call ──────────────────────────────
+// Runs when FastAPI is unreachable but a GOOGLE_GEMINI_API_KEY is present.
+// Calls Gemini via its OpenAI-compatible endpoint; on any failure returns
+// null so the caller falls through to the local template engine (safety net).
 
-const ANTHROPIC_MODEL = "claude-haiku-4-5"; // fast/cheap tier (Haiku 3.5 retired → 4.5)
+const GEMINI_MODEL = "gemini-2.0-flash"; // fast/cheap tier via OpenAI-compatible API
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
-const ANTHROPIC_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار زراعي ذكي متخصص في الزراعة السورية.
+const GEMINI_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار زراعي ذكي متخصص في الزراعة السورية.
 
 - أجب دائماً باللغة العربية الفصحى المعيارية بأسلوب واضح ومهني.
 - اجعل إجاباتك دقيقة وعمليّة وقابلة للتطبيق، ومخصّصة للزراعة السورية ومحافظاتها (حلب، الحسكة، دير الزور، حمص، حماة، إدلب، اللاذقية، طرطوس، دمشق وريفها، درعا، الرقة، السويداء، القنيطرة)، مع مراعاة مناخ كل منطقة وتربتها ومحاصيلها.
@@ -79,21 +79,14 @@ const ANTHROPIC_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار ز�
 - اجعل الرد مختصراً تحت 300 كلمة، ونظّم الإجابة بما يناسب السؤال — لا تلتزم بقالب ثابت أو هيكل جامد.
 - إن كان السؤال مجرد تحية أو سؤال عام، رحّب بالمزارع بدفء واسأله كيف يمكنك مساعدته دون إطالة.`;
 
-type AnthropicImageMedia = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-
-// Accepts a raw base64 string or a full data URL; normalises to a Claude image source.
-function parseImageSource(
-  raw: string,
-): { media_type: AnthropicImageMedia; data: string } | null {
+// Accepts a raw base64 string or a full data URL; normalises to a data URL
+// suitable for the OpenAI-compatible `image_url` content part.
+function toImageDataUrl(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const m = trimmed.match(/^data:(image\/(?:jpeg|jpg|png|gif|webp));base64,([\s\S]+)$/);
-  if (m) {
-    const mt = m[1] === "image/jpg" ? "image/jpeg" : (m[1] as AnthropicImageMedia);
-    return { media_type: mt, data: m[2] };
-  }
+  if (/^data:image\/[a-z]+;base64,/i.test(trimmed)) return trimmed;
   // Raw base64 with no data-URL prefix — assume JPEG.
-  return { media_type: "image/jpeg", data: trimmed };
+  return `data:image/jpeg;base64,${trimmed}`;
 }
 
 function buildUserText(req: ChatRequest): string {
@@ -120,47 +113,59 @@ function buildUserText(req: ChatRequest): string {
   return lines.join("\n");
 }
 
-// Builds the user turn — a plain string, or a [image, text] block array when an
-// image is attached so Claude performs real vision analysis.
-function buildUserMessage(req: ChatRequest): Anthropic.MessageParam {
-  const text = buildUserText(req);
-  const img = req.image_base64 ? parseImageSource(req.image_base64) : null;
-  if (!img) return { role: "user", content: text };
+type GeminiContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    >;
 
-  return {
-    role: "user",
-    content: [
-      { type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } },
-      { type: "text", text },
-    ],
-  };
+// Builds the user turn content — a plain string, or a [image, text] parts array
+// when an image is attached so Gemini performs real vision analysis.
+function buildUserContent(req: ChatRequest): GeminiContent {
+  const text = buildUserText(req);
+  const url = req.image_base64 ? toImageDataUrl(req.image_base64) : null;
+  if (!url) return text;
+
+  return [
+    { type: "image_url", image_url: { url } },
+    { type: "text", text },
+  ];
 }
 
-async function callAnthropic(req: ChatRequest): Promise<ChatResponse | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function callGemini(req: ChatRequest): Promise<ChatResponse | null> {
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) return null;
   if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer → fall through
 
   try {
-    const client = new Anthropic({ apiKey });
-    const msg = await client.messages.create(
-      {
-        model: ANTHROPIC_MODEL,
-        max_tokens: 800,
-        system: ANTHROPIC_SYSTEM_PROMPT,
-        messages: [buildUserMessage(req)],
+    const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
-      { timeout: 25_000, maxRetries: 1 },
-    );
+      body: JSON.stringify({
+        model: GEMINI_MODEL,
+        max_tokens: 800,
+        messages: [
+          { role: "system", content: GEMINI_SYSTEM_PROMPT },
+          { role: "user", content: buildUserContent(req) },
+        ],
+      }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) return null; // quota / auth / server error → fall through to local engine
 
-    const reply = msg.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n")
-      .trim();
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
 
-    if (!reply) return null; // empty/refusal → fall through to local engine
+    const reply = (data.choices?.[0]?.message?.content ?? "").trim();
+    if (!reply) return null; // empty → fall through to local engine
 
+    const usage = data.usage;
     return {
       reply,
       session_id: req.session_id ?? crypto.randomUUID(),
@@ -172,7 +177,9 @@ async function callAnthropic(req: ChatRequest): Promise<ChatResponse | null> {
           is_status: false,
         },
       ],
-      tokens_used: msg.usage.input_tokens + msg.usage.output_tokens,
+      tokens_used: usage
+        ? (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)
+        : null,
       visualization: null,
     };
   } catch {
@@ -807,8 +814,8 @@ export async function POST(req: NextRequest) {
   const proxied = await proxyFastAPI(body);
   if (proxied) return NextResponse.json(proxied);
 
-  // 2. Direct Claude call (real LLM) when ANTHROPIC_API_KEY is present
-  const llm = await callAnthropic(body);
+  // 2. Direct Gemini call (real LLM) when GOOGLE_GEMINI_API_KEY is present
+  const llm = await callGemini(body);
   if (llm) return NextResponse.json(llm);
 
   // 3. Smart local template engine — always succeeds (safety net)
