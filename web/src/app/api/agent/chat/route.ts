@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 
 // ── Shared types (mirror api.ts) ────────────────────────────────────────
 
@@ -58,6 +59,122 @@ async function proxyFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
     });
     if (!res.ok) return null;
     return res.json() as Promise<ChatResponse>;
+  } catch {
+    return null;
+  }
+}
+
+// ── Anthropic (Claude) direct call ──────────────────────────────────────
+// Runs when FastAPI is unreachable but an ANTHROPIC_API_KEY is present.
+// Returns a real, dynamic LLM reply; on any failure returns null so the
+// caller falls through to the local template engine (safety net).
+
+const ANTHROPIC_MODEL = "claude-haiku-4-5"; // fast/cheap tier (Haiku 3.5 retired → 4.5)
+
+const ANTHROPIC_SYSTEM_PROMPT = `أنت "أغرو-سيريا"، مستشار زراعي ذكي متخصص في الزراعة السورية.
+
+- أجب دائماً باللغة العربية الفصحى المعيارية بأسلوب واضح ومهني.
+- اجعل إجاباتك دقيقة وعمليّة وقابلة للتطبيق، ومخصّصة للزراعة السورية ومحافظاتها (حلب، الحسكة، دير الزور، حمص، حماة، إدلب، اللاذقية، طرطوس، دمشق وريفها، درعا، الرقة، السويداء، القنيطرة)، مع مراعاة مناخ كل منطقة وتربتها ومحاصيلها.
+- عند الحاجة قدّم أرقاماً تقريبية واقعية (احتياجات الري، الأسعار، المواعيد الزراعية) ووضّح أنها تقديرية.
+- اجعل الرد مختصراً تحت 300 كلمة، ونظّم الإجابة بما يناسب السؤال — لا تلتزم بقالب ثابت أو هيكل جامد.
+- إن كان السؤال مجرد تحية أو سؤال عام، رحّب بالمزارع بدفء واسأله كيف يمكنك مساعدته دون إطالة.`;
+
+type AnthropicImageMedia = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+// Accepts a raw base64 string or a full data URL; normalises to a Claude image source.
+function parseImageSource(
+  raw: string,
+): { media_type: AnthropicImageMedia; data: string } | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const m = trimmed.match(/^data:(image\/(?:jpeg|jpg|png|gif|webp));base64,([\s\S]+)$/);
+  if (m) {
+    const mt = m[1] === "image/jpg" ? "image/jpeg" : (m[1] as AnthropicImageMedia);
+    return { media_type: mt, data: m[2] };
+  }
+  // Raw base64 with no data-URL prefix — assume JPEG.
+  return { media_type: "image/jpeg", data: trimmed };
+}
+
+function buildUserText(req: ChatRequest): string {
+  const ctx = req.user_context;
+  const fields = ctx?.fields ?? [];
+  const hasMsg = !!req.message?.trim();
+  const hasCtx = fields.length > 0 || !!ctx?.active_crops?.length;
+
+  // Image-only request → give the vision model an explicit agronomy instruction.
+  const question = hasMsg
+    ? req.message
+    : "حلّل هذه الصورة الزراعية وبيّن إن كان هناك أي أعراض مرضية أو نقص غذائي أو آفات، ثم قدّم توصيات عملية للمزارع.";
+
+  if (!hasCtx) return question;
+
+  const lines: string[] = ["[سياق حقول المزارع المسجّلة]"];
+  fields.slice(0, 5).forEach((f) => {
+    lines.push(`• ${f.nameAr} (${f.provinceAr}) — ${f.cropAr}، ${f.areaHa} هكتار`);
+  });
+  if (ctx?.active_crops?.length) {
+    lines.push(`المحاصيل النشطة: ${ctx.active_crops.join("، ")}`);
+  }
+  lines.push("", `سؤال المزارع: ${question}`);
+  return lines.join("\n");
+}
+
+// Builds the user turn — a plain string, or a [image, text] block array when an
+// image is attached so Claude performs real vision analysis.
+function buildUserMessage(req: ChatRequest): Anthropic.MessageParam {
+  const text = buildUserText(req);
+  const img = req.image_base64 ? parseImageSource(req.image_base64) : null;
+  if (!img) return { role: "user", content: text };
+
+  return {
+    role: "user",
+    content: [
+      { type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } },
+      { type: "text", text },
+    ],
+  };
+}
+
+async function callAnthropic(req: ChatRequest): Promise<ChatResponse | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer → fall through
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create(
+      {
+        model: ANTHROPIC_MODEL,
+        max_tokens: 800,
+        system: ANTHROPIC_SYSTEM_PROMPT,
+        messages: [buildUserMessage(req)],
+      },
+      { timeout: 25_000, maxRetries: 1 },
+    );
+
+    const reply = msg.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    if (!reply) return null; // empty/refusal → fall through to local engine
+
+    return {
+      reply,
+      session_id: req.session_id ?? crypto.randomUUID(),
+      chain_of_thought: [
+        {
+          agent: "synthesizer",
+          role_ar: "المُجمِّع الاستراتيجي",
+          thought: "أحلّل سؤالك وأصيغ إجابة زراعية مخصّصة للسياق السوري...",
+          is_status: false,
+        },
+      ],
+      tokens_used: msg.usage.input_tokens + msg.usage.output_tokens,
+      visualization: null,
+    };
   } catch {
     return null;
   }
@@ -686,11 +803,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
   }
 
-  // Try FastAPI first
+  // 1. Try FastAPI first (full multi-agent pipeline, if FASTAPI_URL is set)
   const proxied = await proxyFastAPI(body);
   if (proxied) return NextResponse.json(proxied);
 
-  // Smart local fallback — always succeeds
+  // 2. Direct Claude call (real LLM) when ANTHROPIC_API_KEY is present
+  const llm = await callAnthropic(body);
+  if (llm) return NextResponse.json(llm);
+
+  // 3. Smart local template engine — always succeeds (safety net)
   const response = buildLocalResponse(body);
   return NextResponse.json(response);
 }
