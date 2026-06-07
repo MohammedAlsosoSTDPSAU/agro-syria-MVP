@@ -18,7 +18,7 @@ import { VisualWorkspace } from "@/components/workspace/VisualWorkspace";
 import { AgroLogo } from "@/components/icons/AgroLogo";
 import {
   // SmartCards temporarily disabled (content is hardcoded) — re-enable with real data:
-  // WeatherInsightCard, MarketForecastCard, IrrigationPlanCard, DiseaseRiskCard, NationalTrendCard,
+  // WeatherInsightCard, MarketForecastCard, IrrigationPlanCard, NationalTrendCard,
   MiniSyriaMap,
 } from "@/components/copilot/SmartCards";
 
@@ -525,9 +525,6 @@ function MessageBubble({
         )}
         {message.smartCard === "irrigation" && (
           <IrrigationPlanCard crop={message.smartCardMeta?.crop} />
-        )}
-        {message.smartCard === "disease" && (
-          <DiseaseRiskCard diseaseKey={message.smartCardMeta?.diseaseKey} />
         )}
         {message.smartCard === "trends" && (
           <NationalTrendCard province={message.smartCardMeta?.province} />

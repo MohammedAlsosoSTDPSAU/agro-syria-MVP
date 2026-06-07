@@ -4,8 +4,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   CloudSun, Sun, CloudRain, Cloud, Wind, Droplets,
-  TrendingUp, TrendingDown, Clock, Sprout, Bug,
-  FlaskConical, Leaf, Thermometer,
+  TrendingUp, TrendingDown, Clock, Sprout,
+  Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PROVINCES, VIEW_BOX } from "@/components/workspace/SyriaMap";
@@ -419,141 +419,6 @@ export function IrrigationPlanCard({ crop = "wheat" }: { crop?: string }) {
 
       <p className="text-center text-[9px] text-muted-foreground/35 py-2 border-t border-emerald-500/10">
         وكيل التربة · تحسين آلي وفق مستشعرات الحقل
-      </p>
-    </motion.div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// DISEASE RISK CARD
-// ══════════════════════════════════════════════════════════════════════
-
-type UrgencyLevel = "low" | "medium" | "high" | "critical";
-
-interface DiseaseData {
-  nameAr:         string;
-  pathogen:       string;
-  riskPct:        number;
-  confidencePct:  number;
-  chemicalAction: string;
-  organicAction:  string;
-  urgency:        UrgencyLevel;
-}
-
-const DISEASE_DB: Record<string, DiseaseData> = {
-  rust: {
-    nameAr: "صدأ القمح الأصفر",
-    pathogen: "Puccinia striiformis",
-    riskPct: 78, confidencePct: 84,
-    chemicalAction: "Propiconazole 25% EC — رش 0.5 لتر/دونم",
-    organicAction: "مستخلص الثوم المخفف + Bacillus subtilis رشاً وقائياً",
-    urgency: "high",
-  },
-  blight: {
-    nameAr: "اللفحة المتأخرة",
-    pathogen: "Phytophthora infestans",
-    riskPct: 65, confidencePct: 77,
-    chemicalAction: "Mancozeb 80% WP — رش 2 كغ/دونم",
-    organicAction: "مستخلص النيم 2% + كاولين 5% كطبقة وقائية",
-    urgency: "medium",
-  },
-  aphids: {
-    nameAr: "المن — حشرات المص",
-    pathogen: "Aphididae spp.",
-    riskPct: 52, confidencePct: 90,
-    chemicalAction: "Imidacloprid 200 SL — 80 مل/100 لتر ماء",
-    organicAction: "زيت النيم 2% + صابون بوتاسي 1% رشاً مباشراً",
-    urgency: "medium",
-  },
-  powdery: {
-    nameAr: "البياض الدقيقي",
-    pathogen: "Erysiphe graminis",
-    riskPct: 42, confidencePct: 80,
-    chemicalAction: "Tebuconazole 25% EW — رش 0.4 لتر/دونم",
-    organicAction: "بيكربونات الصوديوم 1% + رش كبريت 80% WP",
-    urgency: "low",
-  },
-};
-
-const URGENCY_CFG: Record<UrgencyLevel, { label: string; border: string; bg: string; text: string; barColor: string }> = {
-  low:      { label: "منخفض", border: "border-emerald-500/30", bg: "bg-emerald-500/6", text: "text-emerald-400",   barColor: "bg-emerald-400" },
-  medium:   { label: "متوسط", border: "border-amber-500/30",   bg: "bg-amber-500/6",   text: "text-amber-400",     barColor: "bg-amber-400"   },
-  high:     { label: "مرتفع", border: "border-red-500/30",     bg: "bg-red-500/6",     text: "text-red-400",       barColor: "bg-red-400"     },
-  critical: { label: "حرج",   border: "border-red-500/40",     bg: "bg-red-500/10",    text: "text-red-300",       barColor: "bg-red-300"     },
-};
-
-export function DiseaseRiskCard({ diseaseKey = "rust" }: { diseaseKey?: string }) {
-  const key  = DISEASE_DB[diseaseKey] ? diseaseKey : "rust";
-  const data = DISEASE_DB[key];
-  const urg  = URGENCY_CFG[data.urgency];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, ease: EASE }}
-      className={cn("mt-3 rounded-2xl border overflow-hidden", urg.border, urg.bg)}
-      dir="rtl"
-    >
-      {/* Header */}
-      <div className={cn("flex items-center gap-2.5 px-4 pt-3.5 pb-2.5 border-b", urg.border)}>
-        <div className="w-6 h-6 rounded-lg bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
-          <Bug className="w-3.5 h-3.5 text-red-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-bold text-red-400 truncate">{data.nameAr}</p>
-          <p className="text-[9px] text-muted-foreground/45 italic">{data.pathogen}</p>
-        </div>
-        <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0", urg.border, urg.text)}>
-          {urg.label}
-        </span>
-      </div>
-
-      <div className="px-4 py-3 space-y-3">
-        {/* Risk + Confidence bars */}
-        <div className="space-y-2.5">
-          {[
-            { label: "مستوى الخطر",   pct: data.riskPct,       color: urg.barColor, textColor: urg.text },
-            { label: "ثقة التشخيص",   pct: data.confidencePct, color: "bg-emerald-400", textColor: "text-emerald-400" },
-          ].map(({ label, pct, color, textColor }) => (
-            <div key={label}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-muted-foreground/60">{label}</span>
-                <span className={cn("text-[11px] font-bold font-numeric", textColor)}>{pct}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${pct}%` }}
-                  transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                  className={cn("h-full rounded-full", color)}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Treatment options */}
-        <div className="space-y-2">
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <FlaskConical className="w-3 h-3 text-red-400/80 flex-shrink-0" />
-              <span className="text-[9px] font-bold text-red-400/80">العلاج الكيميائي</span>
-            </div>
-            <p className="text-[10px] text-foreground/70 leading-relaxed">{data.chemicalAction}</p>
-          </div>
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Leaf className="w-3 h-3 text-emerald-400/80 flex-shrink-0" />
-              <span className="text-[9px] font-bold text-emerald-400/80">البديل العضوي</span>
-            </div>
-            <p className="text-[10px] text-foreground/70 leading-relaxed">{data.organicAction}</p>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-center text-[9px] text-muted-foreground/35 py-2 border-t border-white/[0.04]">
-        كاشف الأمراض · قاعدة بيانات AVRDC 2026
       </p>
     </motion.div>
   );
