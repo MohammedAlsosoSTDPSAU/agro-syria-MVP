@@ -44,29 +44,10 @@ interface ChatRequest {
   user_context?: UserContext;
 }
 
-// ── FastAPI proxy ───────────────────────────────────────────────────────
-
-async function proxyFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
-  const url = process.env.FASTAPI_URL;
-  if (!url) return null;
-  try {
-    const res = await fetch(`${url}/api/agent/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) return null;
-    return res.json() as Promise<ChatResponse>;
-  } catch {
-    return null;
-  }
-}
-
 // ── Groq (OpenAI-compatible) direct call ────────────────────────────────
-// Runs when FastAPI is unreachable but a GROQ_API_KEY is present.
-// Calls Groq via its OpenAI-compatible endpoint; on any failure returns
-// null so the caller falls through to the local template engine (safety net).
+// Primary LLM path: runs when GROQ_API_KEY is present. Calls Groq via its
+// OpenAI-compatible endpoint; on any failure returns null so the caller
+// falls through to the local template engine (last-resort fallback).
 
 const GROQ_MODEL = "llama-3.1-8b-instant"; // fast/cheap tier via OpenAI-compatible API
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
@@ -810,15 +791,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
   }
 
-  // 1. Try FastAPI first (full multi-agent pipeline, if FASTAPI_URL is set)
-  const proxied = await proxyFastAPI(body);
-  if (proxied) return NextResponse.json(proxied);
-
-  // 2. Direct Groq call (real LLM) when GROQ_API_KEY is present
+  // 1. Primary LLM path — Groq (real, dynamic replies)
   const llm = await callGroq(body);
   if (llm) return NextResponse.json(llm);
 
-  // 3. Smart local template engine — always succeeds (safety net)
+  // 2. Local template engine — last-resort fallback only (missing key / error)
   const response = buildLocalResponse(body);
   return NextResponse.json(response);
 }

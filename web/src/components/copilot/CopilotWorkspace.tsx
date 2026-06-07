@@ -246,10 +246,17 @@ function detectSmartCard(
 ): { type: NonNullable<Message["smartCard"]>; meta: Record<string, string> } | null {
   const text = userMsg + " " + aiReply;
 
-  if (/صدأ|بياض دقيقي|لفح|أمراض|آفة|حشر|بق|rust|blight|aphid|powdery|disease/i.test(text)) {
+  // Disease card — only when the user is actually consulting about a specific
+  // disease/pest, NOT when the AI merely mentions "الأمراض/الوقاية" in general
+  // advice (that incidental mention used to surface the rust card on every
+  // reply). Require a SPECIFIC disease term in the user's question, or a
+  // specific diagnosis in the reply paired with a disease-context question.
+  const specificDisease = /صدأ|بياض دقيقي|لفح|أفيد|rust|blight|powdery|aphid/i;
+  const diseaseContext  = /مرض|آفة|إصابة|أعراض|عدوى|disease|pest|infection|symptom/i;
+  if (specificDisease.test(userMsg) || (diseaseContext.test(userMsg) && specificDisease.test(aiReply))) {
     const key = /بياض دقيقي|powdery/i.test(text) ? "powdery"
               : /لفح|blight/i.test(text)           ? "blight"
-              : /حشر|أفيد|aphid/i.test(text)       ? "aphids"
+              : /أفيد|aphid|حشر/i.test(text)       ? "aphids"
               : "rust";
     return { type: "disease", meta: { diseaseKey: key } };
   }
