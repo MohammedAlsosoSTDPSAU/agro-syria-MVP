@@ -11,6 +11,7 @@ import {
   CloudSun, TrendingUp, Droplets, Bug, Search, ArrowLeft,
   Clock, Zap, MicOff, Brain, Sprout,
   BookmarkPlus, MapPin, Thermometer,
+  RefreshCw, Pencil, Copy, Check, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sendChatMessage, type AgentThought, type VisualizationData } from "@/lib/api";
@@ -424,12 +425,107 @@ function CoTDrawer({ thoughts }: { thoughts: AgentThought[] }) {
   );
 }
 
+// Per-message action toolbar. Shown on hover (desktop) / always (mobile).
+function MessageActions({
+  message,
+  onRetry,
+  onEditResend,
+  isRetrying,
+  thinking,
+}: {
+  message: Message;
+  onRetry?: (msg: Message) => void;
+  onEditResend?: (msg: Message) => void;
+  isRetrying?: boolean;
+  thinking?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const isUser = message.role === "user";
+  const isError = message.role === "error";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable (insecure context / denied) — no-op */
+    }
+  };
+
+  // 44px tap target on mobile; compact on desktop.
+  const btn =
+    "flex items-center justify-center w-11 h-11 sm:w-7 sm:h-7 rounded-lg " +
+    "text-muted-foreground/45 hover:text-emerald-400 hover:bg-emerald-500/10 " +
+    "disabled:opacity-30 disabled:hover:text-muted-foreground/45 disabled:hover:bg-transparent " +
+    "transition-colors";
+  const iconCls = "w-4 h-4 sm:w-3.5 sm:h-3.5";
+
+  return (
+    <div
+      dir="rtl"
+      className={cn(
+        "flex flex-row gap-1 mt-1 transition-opacity duration-200",
+        // mobile: always visible & interactive; desktop: reveal on hover/focus
+        "opacity-100 sm:opacity-0 sm:pointer-events-none",
+        "sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto",
+        "sm:group-focus-within:opacity-100 sm:group-focus-within:pointer-events-auto",
+      )}
+    >
+      {isUser ? (
+        <button
+          type="button"
+          onClick={() => onEditResend?.(message)}
+          disabled={thinking}
+          title="تعديل وإعادة الإرسال"
+          aria-label="تعديل وإعادة الإرسال"
+          className={btn}
+        >
+          <Pencil className={iconCls} />
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => onRetry?.(message)}
+            disabled={thinking || isRetrying}
+            title="إعادة المحاولة"
+            aria-label="إعادة المحاولة"
+            className={btn}
+          >
+            {isRetrying ? <Loader2 className={cn(iconCls, "animate-spin")} /> : <RefreshCw className={iconCls} />}
+          </button>
+          {!isError && (
+            <button
+              type="button"
+              onClick={handleCopy}
+              title={copied ? "تم النسخ" : "نسخ الرد"}
+              aria-label="نسخ الرد"
+              className={btn}
+            >
+              {copied ? <Check className={cn(iconCls, "text-emerald-400")} /> : <Copy className={iconCls} />}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   onArchive,
+  onRetry,
+  onEditResend,
+  isRetrying,
+  thinking,
 }: {
   message: Message;
   onArchive?: (msg: Message) => void;
+  onRetry?: (msg: Message) => void;
+  onEditResend?: (msg: Message) => void;
+  isRetrying?: boolean;
+  thinking?: boolean;
 }) {
   const isUser  = message.role === "user";
   const isError = message.role === "error";
@@ -440,7 +536,7 @@ function MessageBubble({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: EASE }}
-        className="flex flex-col items-end gap-1"
+        className="flex flex-col items-end gap-1 group"
       >
         {message.emergency && (
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/15 border border-red-500/30 mb-1">
@@ -467,6 +563,9 @@ function MessageBubble({
         {message.time && (
           <span className="text-[10px] text-muted-foreground/40 font-numeric pe-1">{message.time}</span>
         )}
+        {onEditResend && (
+          <MessageActions message={message} onEditResend={onEditResend} thinking={thinking} />
+        )}
       </motion.div>
     );
   }
@@ -486,7 +585,7 @@ function MessageBubble({
           ? <AlertCircle className="w-4 h-4 text-red-400" />
           : <Bot className="w-4 h-4 text-emerald-400" />}
       </div>
-      <div className="flex flex-col gap-1 max-w-[78%]">
+      <div className="flex flex-col gap-1 max-w-[78%] group">
         <div className={cn(
           "rounded-2xl rounded-tl-sm px-4 py-3",
           isError ? "bg-red-500/5 border border-red-500/20" : "glass-card",
@@ -532,6 +631,14 @@ function MessageBubble({
         */}
         {message.time && (
           <span className="text-[10px] text-muted-foreground/40 font-numeric ps-1">{message.time}</span>
+        )}
+        {message.id !== "welcome" && (
+          <MessageActions
+            message={message}
+            onRetry={onRetry}
+            isRetrying={isRetrying}
+            thinking={thinking}
+          />
         )}
       </div>
     </motion.div>
@@ -1161,6 +1268,9 @@ interface ChatCenterProps {
   onClearChat: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onArchive: (msg: Message) => void;
+  onRetry: (msg: Message) => void;
+  onEditResend: (msg: Message) => void;
+  retryingId: string | null;
   proactiveAlert: string | null;
   onDismissAlert: () => void;
 }
@@ -1175,6 +1285,9 @@ function ChatCenter({
   onExportPDF, onClearChat,
   messagesEndRef,
   onArchive,
+  onRetry,
+  onEditResend,
+  retryingId,
   proactiveAlert,
   onDismissAlert,
 }: ChatCenterProps) {
@@ -1269,7 +1382,15 @@ function ChatCenter({
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} onArchive={onArchive} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onArchive={onArchive}
+              onRetry={onRetry}
+              onEditResend={onEditResend}
+              isRetrying={retryingId === msg.id}
+              thinking={thinking}
+            />
           ))}
           {thinking && <ThinkingBubble key="__thinking__" hasImage={thinkingHasImage} />}
         </AnimatePresence>
@@ -1486,6 +1607,7 @@ export function CopilotWorkspace() {
   const [hydrated, setHydrated]             = useState(false);
   const [isEmergency, setIsEmergency]       = useState(false);
   const [isRecording, setIsRecording]       = useState(false);
+  const [retryingId, setRetryingId]         = useState<string | null>(null);
 
   // Image attachment
   const [imageBase64, setImageBase64]       = useState<string | null>(null);
@@ -1512,6 +1634,7 @@ export function CopilotWorkspace() {
   const sessionId      = useRef<string | null>(null);
   const messagesEndRef  = useRef<HTMLDivElement | null>(null);
   const fileInputRef    = useRef<HTMLInputElement | null>(null);
+  const editingUserIdRef = useRef<string | null>(null);
   const isFirstScroll   = useRef(true);
   const lastMsgTimeRef  = useRef<number>(Date.now());
   const alertIdxRef     = useRef(0);
@@ -1578,6 +1701,7 @@ export function CopilotWorkspace() {
     storageRemove(STORAGE_SESSION);
     sessionId.current = null;
     isFirstScroll.current = true;
+    editingUserIdRef.current = null;
     setMessages([makeWelcome()]);
     setIsEmergency(false);
     setHighlightedProvince(null);
@@ -1630,14 +1754,20 @@ export function CopilotWorkspace() {
     reader.readAsDataURL(file);
   }, []);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
-    if ((!text && !imageBase64) || thinking) return;
-
-    const msgText    = text;
-    const msgPreview = imagePreview;
-    const msgB64     = imageBase64;
-    const emergency  = isEmergency;
+  // Core send pipeline. Reads only its args (not composer state) so it can be
+  // reused by the normal composer, Retry, and Edit&Resend. When replaceUserId
+  // is set, the old user message + its immediate reply are removed before the
+  // new pair is appended (Edit&Resend semantics).
+  const runSend = useCallback(async (opts: {
+    text: string;
+    imageBase64: string | null;
+    imagePreview: string | null;
+    emergency: boolean;
+    replaceUserId?: string | null;
+  }) => {
+    const msgText = opts.text.trim();
+    const msgB64  = opts.imageBase64;
+    if ((!msgText && !msgB64) || thinking) return;
 
     lastMsgTimeRef.current = Date.now();
     setProactiveAlert(null);
@@ -1645,27 +1775,35 @@ export function CopilotWorkspace() {
     const msgProvince = detectProvince(msgText);
     if (msgProvince) setHighlightedProvince(msgProvince);
 
-    setMessages((m) => [
-      ...m,
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        text: emergency ? `[بلاغ طارئ] ${msgText}` : msgText,
-        imagePreview: msgPreview ?? undefined,
-        emergency,
-        time: nowHHMM(),
-      },
-    ]);
-    setInput("");
-    clearImage();
-    setIsEmergency(false);
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: opts.emergency ? `[بلاغ طارئ] ${msgText}` : msgText,
+      imagePreview: opts.imagePreview ?? undefined,
+      emergency: opts.emergency,
+      time: nowHHMM(),
+    };
+
+    setMessages((m) => {
+      let base = m;
+      if (opts.replaceUserId) {
+        const idx = m.findIndex((x) => x.id === opts.replaceUserId);
+        if (idx !== -1) {
+          const next = m[idx + 1];
+          const removeCount = next && (next.role === "assistant" || next.role === "error") ? 2 : 1;
+          base = [...m.slice(0, idx), ...m.slice(idx + removeCount)];
+        }
+      }
+      return [...base, userMessage];
+    });
+
     setLastMessage(msgText);
     setThinking(true);
     setThinkingHasImage(!!msgB64);
 
     try {
       const res = await sendChatMessage({
-        message: emergency ? `[URGENT REPORT] ${msgText}` : msgText,
+        message: opts.emergency ? `[URGENT REPORT] ${msgText}` : msgText,
         session_id: sessionId.current ?? undefined,
         image_base64: msgB64 ?? undefined,
         user_context: userContextRef.current,
@@ -1718,7 +1856,112 @@ export function CopilotWorkspace() {
       setThinking(false);
       setThinkingHasImage(false);
     }
-  }, [input, thinking, imageBase64, imagePreview, isEmergency, clearImage]);
+  }, [thinking]);
+
+  // Normal composer send — captures composer state, then clears it.
+  const send = useCallback(() => {
+    const text = input.trim();
+    if ((!text && !imageBase64) || thinking) return;
+    const replaceUserId = editingUserIdRef.current;
+    editingUserIdRef.current = null;
+    const opts = { text, imageBase64, imagePreview, emergency: isEmergency, replaceUserId };
+    setInput("");
+    clearImage();
+    setIsEmergency(false);
+    void runSend(opts);
+  }, [input, imageBase64, imagePreview, isEmergency, thinking, clearImage, runSend]);
+
+  // Regenerate a single reply IN PLACE (keeps its id + position in the list).
+  const regenerateReply = useCallback(async (opts: {
+    replyId: string;
+    text: string;
+    imageBase64: string | null;
+  }) => {
+    const msgText = opts.text.trim();
+    if ((!msgText && !opts.imageBase64) || thinking) return;
+
+    setThinking(true);
+    setThinkingHasImage(!!opts.imageBase64);
+
+    try {
+      const res = await sendChatMessage({
+        message: msgText,
+        session_id: sessionId.current ?? undefined,
+        image_base64: opts.imageBase64 ?? undefined,
+        user_context: userContextRef.current,
+      });
+
+      if (!sessionId.current) {
+        sessionId.current = res.session_id;
+        storageSet(STORAGE_SESSION, res.session_id);
+      }
+
+      const detected = detectSmartCard(msgText, res.reply);
+      const replyProvince = detectProvince(msgText + " " + res.reply);
+      if (detected?.type === "disease" && replyProvince) {
+        setDiseaseProvince(replyProvince);
+        setHighlightedProvince(null);
+      } else if (replyProvince) {
+        setHighlightedProvince(replyProvince);
+        setDiseaseProvince(null);
+      }
+
+      setMessages((m) => m.map((msg) => (msg.id === opts.replyId ? {
+        id: msg.id,
+        role: "assistant" as const,
+        text: res.reply,
+        thoughts: res.chain_of_thought,
+        visualization: res.visualization ?? undefined,
+        time: nowHHMM(),
+        smartCard: detected?.type,
+        smartCardMeta: detected?.meta,
+      } : msg)));
+    } catch (err) {
+      const isTimeout = err instanceof DOMException && err.name === "AbortError";
+      const errorText = isTimeout
+        ? "انتهت مهلة الاتصال — جارٍ إعادة الاتصال بالخبراء، حاول مجدداً."
+        : "تعذّر الوصول إلى شبكة الوكلاء — جارٍ إعادة الاتصال. تحقق من الاتصال بالإنترنت وأعد المحاولة.";
+      setMessages((m) => m.map((msg) => (msg.id === opts.replyId ? {
+        id: msg.id,
+        role: "error" as const,
+        text: errorText,
+        time: nowHHMM(),
+      } : msg)));
+    } finally {
+      setThinking(false);
+      setThinkingHasImage(false);
+    }
+  }, [thinking]);
+
+  // BUTTON 1 — Retry: regenerate this reply in place from the preceding user
+  // message. Works on assistant replies AND error bubbles (e.g. after a timeout).
+  const retryMessage = useCallback((replyMsg: Message) => {
+    if (thinking) return;
+    const idx = messages.findIndex((m) => m.id === replyMsg.id);
+    if (idx === -1) return;
+    let userMsg: Message | null = null;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].role === "user") { userMsg = messages[i]; break; }
+    }
+    if (!userMsg) return;
+    const rawText = userMsg.text.replace(/^\[بلاغ طارئ\]\s*/, "");
+    const preview = userMsg.imagePreview ?? null;
+    const b64 = preview ? (preview.split(",")[1] ?? null) : null;
+    setRetryingId(replyMsg.id);
+    void regenerateReply({ replyId: replyMsg.id, text: rawText, imageBase64: b64 })
+      .finally(() => setRetryingId(null));
+  }, [messages, thinking, regenerateReply]);
+
+  // BUTTON 2 — Edit & Resend: load the message back into the composer, open the
+  // image picker, and mark it for replacement on next send.
+  const editResendMessage = useCallback((userMsg: Message) => {
+    if (thinking) return;
+    const rawText = userMsg.text.replace(/^\[بلاغ طارئ\]\s*/, "");
+    setInput(rawText);
+    setIsEmergency(!!userMsg.emergency);
+    editingUserIdRef.current = userMsg.id;
+    handleAttach(); // activate the existing image upload input
+  }, [thinking, handleAttach]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1868,6 +2111,9 @@ export function CopilotWorkspace() {
           onClearChat={clearChat}
           messagesEndRef={messagesEndRef}
           onArchive={archiveMessage}
+          onRetry={retryMessage}
+          onEditResend={editResendMessage}
+          retryingId={retryingId}
           proactiveAlert={proactiveAlert}
           onDismissAlert={() => setProactiveAlert(null)}
         />
