@@ -1,10 +1,14 @@
-"""RAG engine — neural Arabic search with PDF + TXT ingestion.
+"""RAG engine — Arabic search with PDF + TXT ingestion.
 
-Primary backend  : sentence-transformers paraphrase-multilingual-MiniLM-L12-v2
-                   → FAISS IndexFlatIP (cosine sim, L2-normalised)
-Fallback backend : scikit-learn TF-IDF char-ngram → FAISS IndexFlatIP
+Backend            : scikit-learn TF-IDF char-ngram → FAISS IndexFlatIP
+                     (neural/fastembed is disabled — see below)
 Document sources : knowledge_base/*.txt   (UTF-8 plain text)
                    knowledge_base/*.pdf   (pypdf — handles Arabic Unicode)
+
+Neural embeddings (fastembed ONNX) are disabled: loading the ONNX model
+routinely OOM-crashed the process on Render's free tier (512MB RAM). TF-IDF
+has a much smaller memory footprint and is the only backend used now — see
+_build_tfidf(). Re-enabling fastembed requires a higher-memory plan.
 
 Index invalidation : SHA-256 of all source files; rebuilt automatically on change.
 Re-index trigger   : call force_reindex() at runtime, or restart the server.
@@ -15,7 +19,6 @@ Search strategy    : Hybrid — vector similarity (75%) + keyword matching (25%)
 
 from __future__ import annotations
 
-import concurrent.futures
 import hashlib
 import logging
 import re
@@ -28,19 +31,9 @@ from typing import Any
 log = logging.getLogger("agro_syria.rag")
 
 _KB_DIR        = Path(__file__).resolve().parents[2] / "knowledge_base"
-_NEURAL_MODEL  = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # fastembed requires the fully-qualified name
-_CHUNK_WORDS   = 280   # smaller chunks → higher precision per result
-_CHUNK_OVERLAP = 40
-
-# Hard wall-clock budget for the neural backend (model download + embed).
-# HuggingFace Hub downloads have no built-in timeout; a slow/stalled connection
-# (Render's free tier, unauthenticated HF requests are rate-limited) can block
-# the build thread indefinitely with no exception ever raised — from the
-# outside that looks identical to "the index never finishes building". 60s
-# also fails fast rather than risk loading a large ONNX model into Render's
-# 512MB RAM ceiling; on timeout the build falls back to the much lighter
-# TF-IDF backend immediately, no retry.
-_NEURAL_BUILD_TIMEOUT_S = 60
+# _NEURAL_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # disabled on free tier — see module docstring
+_CHUNK_WORDS   = 150   # smaller chunks → higher precision per result
+_CHUNK_OVERLAP = 20
 
 # Layout-mode PDF extraction is memory-heavy; plain extraction is used for
 # files above this size to avoid MemoryError on Render's 512MB RAM.
@@ -178,17 +171,11 @@ class RAGEngine:
                 self._ready = True
                 return
 
-            try:
-                self._build_neural_bounded()
-                self.uses_neural = True
-                log.info("[rag-build] stage=neural-done elapsed=%.1fs", time.monotonic() - t0)
-            except Exception as exc:
-                log.warning(
-                    "[RAG] Neural model download failed, falling back to TF-IDF (%s)", type(exc).__name__,
-                )
-                self._build_tfidf()
-                self.uses_neural = False
-                log.info("[rag-build] stage=tfidf-done elapsed=%.1fs", time.monotonic() - t0)
+            # Neural (fastembed) is disabled — see module docstring. TF-IDF is
+            # the only backend; no neural attempt, no fallback branch needed.
+            self._build_tfidf()
+            self.uses_neural = False
+            log.info("[rag-build] stage=tfidf-done elapsed=%.1fs", time.monotonic() - t0)
 
             self._hash = new_hash
             self._ready = True
@@ -202,74 +189,8 @@ class RAGEngine:
             log.error("[RAG] Index build failed: %s", exc, exc_info=True)
             self._ready = False
 
-    def _build_neural_bounded(self) -> None:
-        """Run :meth:`_build_neural` under a hard wall-clock budget.
-
-        The stuck thread (if any) is abandoned on timeout — Python cannot
-        forcibly kill a thread — but it no longer blocks startup. If it later
-        finishes on its own, its result is simply discarded; a later
-        force_reindex() will redo the work cleanly.
-        """
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="rag-neural-build")
-        future = executor.submit(self._build_neural)
-        try:
-            future.result(timeout=_NEURAL_BUILD_TIMEOUT_S)
-        finally:
-            executor.shutdown(wait=False)
-
-    def _build_neural(self) -> None:
-        import numpy as np
-        import faiss
-
-        texts = [c["text"] for c in self.chunks]
-
-        # ── Primary: fastembed (ONNX Runtime — no PyTorch, fast on CPU) ──
-        try:
-            from fastembed import TextEmbedding
-            t_model = time.monotonic()
-            log.info("[rag-build] stage=fastembed-load model=%s (downloads on first run — may take minutes)", _NEURAL_MODEL)
-            fe_model = TextEmbedding(
-                model_name=_NEURAL_MODEL,
-                threads=2,
-            )
-            log.info("[rag-build] stage=fastembed-loaded elapsed=%.1fs", time.monotonic() - t_model)
-            log.info("[rag-build] stage=embedding-start chunks=%d", len(texts))
-            vecs = np.array(list(fe_model.embed(texts)), dtype="float32")
-            log.info("[rag-build] stage=embedding-done elapsed=%.1fs", time.monotonic() - t_model)
-            norms = np.linalg.norm(vecs, axis=1, keepdims=True)
-            norms[norms == 0] = 1.0
-            vecs /= norms
-            idx = faiss.IndexFlatIP(vecs.shape[1])
-            idx.add(vecs)
-            self._index = idx
-            self._model = fe_model
-            self._backend = "fastembed"
-            log.info("FastEmbed ONNX index ready — dim=%d vectors=%d", vecs.shape[1], idx.ntotal)
-            return
-        except Exception as exc:
-            log.info("FastEmbed unavailable (%s) — trying sentence-transformers", type(exc).__name__)
-
-        # ── Fallback: sentence-transformers (CPU-pinned, small batch) ──
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from sentence_transformers import SentenceTransformer
-
-        log.info("Loading sentence-transformer model: %s (device=cpu, batch=8)", _NEURAL_MODEL)
-        self._model = SentenceTransformer(_NEURAL_MODEL, device="cpu")
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            vecs = self._model.encode(
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-                batch_size=8,        # small batch — avoids OOM on MacBook Air
-            )
-        vecs = np.array(vecs, dtype="float32")
-        idx = faiss.IndexFlatIP(vecs.shape[1])
-        idx.add(vecs)
-        self._index = idx
-        self._backend = "sentence_transformers"
-        log.info("Neural FAISS index ready — dim=%d vectors=%d", vecs.shape[1], idx.ntotal)
+    # _build_neural_bounded() / _build_neural() removed — neural (fastembed)
+    # backend is disabled on the free tier. See module docstring for why.
 
     def _build_tfidf(self) -> None:
         import numpy as np
