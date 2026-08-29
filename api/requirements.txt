@@ -27,9 +27,9 @@ openai>=1.40.0
 # returns zero results without it — it was previously commented out under a
 # mistaken assumption that fastembed/TF-IDF were a full fallback for it too.
 faiss-cpu>=1.8.0
-scikit-learn>=1.4.0          # TF-IDF fallback when neural unavailable
-numpy>=1.25,<2               # pinned: torch 2.2.x compiled against NumPy 1.x ABI
-fastembed>=0.3.0             # ONNX-based embeddings — primary backend, no PyTorch needed
+scikit-learn==1.4.2          # TF-IDF fallback when neural unavailable — pinned for Render (Python 3.11)
+numpy==1.26.4                # pinned: torch 2.2.x compiled against NumPy 1.x ABI
+fastembed==0.3.6             # ONNX-based embeddings — primary backend, no PyTorch needed
 # sentence-transformers>=3.0,<4.0   # disabled on free tier (pulls torch) — fastembed is primary
 # torch>=2.2,<2.3            # disabled on free tier (~2GB) — only needed by sentence-transformers
 pypdf>=4.0.0                 # PDF ingestion for knowledge_base/
