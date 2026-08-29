@@ -80,6 +80,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "sender": "user",
             "agricultural_context": {
                 "image_base64": request.image_base64,
+                "user_context": request.user_context.model_dump() if request.user_context else None,
             },
         },
         config=run_config,

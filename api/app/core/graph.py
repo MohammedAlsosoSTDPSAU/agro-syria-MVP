@@ -220,6 +220,23 @@ def _extract_slots(intent: str, text: str) -> dict[str, Any]:
     return slots
 
 
+def _apply_user_context_fallback(slots: dict[str, Any], user_context: dict[str, Any] | None) -> None:
+    """Fill missing region/crop slots from the farmer's registered profile.
+
+    ``user_context`` (preferred_province / active_crops) comes from the
+    frontend's حقولي/المحاصيل pages; it only fills gaps the message text
+    itself didn't specify — an explicit mention in the query always wins.
+    """
+    if not user_context:
+        return
+    if not slots.get("region") and user_context.get("preferred_province"):
+        slots["region"] = user_context["preferred_province"]
+    if not slots.get("crop") and user_context.get("active_crops"):
+        crops = user_context["active_crops"]
+        if crops:
+            slots["crop"] = crops[0]
+
+
 def _build_slot_ask(intent: str, slots: dict[str, Any]) -> str | None:
     missing: list[str] = []
 
@@ -312,6 +329,7 @@ async def liaison_node(state: GraphState) -> dict[str, Any]:
 
     intent = _detect_intent(inp.raw_query)
     slots = _extract_slots(intent, inp.raw_query)
+    _apply_user_context_fallback(slots, ctx.get("user_context"))
     slot_ask = _build_slot_ask(intent, slots) if intent != "general" else None
 
     if slot_ask:

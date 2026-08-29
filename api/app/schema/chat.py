@@ -7,12 +7,28 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+class UserField(BaseModel):
+    """Mirrors the Next.js frontend's UserField (web/src/lib/api.ts)."""
+    nameAr: str
+    cropAr: str
+    areaHa: float
+    provinceAr: str
+
+
+class UserContext(BaseModel):
+    """Mirrors the Next.js frontend's UserContext (web/src/lib/api.ts)."""
+    fields: list[UserField] = Field(default_factory=list)
+    active_crops: list[str] = Field(default_factory=list)
+    preferred_province: str | None = None
+
+
 class ChatRequest(BaseModel):
     # message can be empty when an image is the sole input
     message: str = Field(default="", max_length=2000)
     session_id: str | None = None
     # raw base64 (with or without "data:image/...;base64," prefix) — max ~6.7 MB for 5 MB image
     image_base64: str | None = Field(default=None, max_length=9_000_000)
+    user_context: UserContext | None = None
 
     @model_validator(mode="after")
     def require_message_or_image(self) -> "ChatRequest":

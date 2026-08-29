@@ -44,10 +44,17 @@ class Settings(BaseSettings):
         return v
 
     # ── LLM providers ────────────────────────────────────────────────
-    # Gemini (Google AI) is the primary provider. We reach it through Google's
-    # OpenAI-compatible endpoint so the existing OpenAI SDK call paths work
-    # unchanged (live, structured-output capable). Reads GEMINI_API_KEY first,
-    # then GOOGLE_API_KEY / GOOGLE_GEMINI_API_KEY.
+    # Groq is the primary provider (matches the Next.js frontend's direct Groq
+    # integration). Reached through its OpenAI-compatible endpoint, same as
+    # Gemini/OpenAI below, so every call site (synthesizer, vision, startup
+    # probe) is provider-agnostic.
+    groq_api_key: str = Field(default="", validation_alias=AliasChoices("GROQ_API_KEY"))
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
+    # Gemini (Google AI) — secondary provider if no Groq key is configured.
+    # Reached through Google's OpenAI-compatible endpoint. Reads GEMINI_API_KEY
+    # first, then GOOGLE_API_KEY / GOOGLE_GEMINI_API_KEY.
     gemini_api_key: str = Field(
         default="",
         validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY"),
@@ -55,7 +62,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
-    # OpenAI (fallback provider if no Gemini key is configured)
+    # OpenAI (last-resort fallback if neither Groq nor Gemini is configured)
     openai_api_key: str = Field(default="")
     openai_model: str = "gpt-4o-mini"   # faster + cheaper for demo; override in .env
     openai_timeout: int = 25             # seconds — falls back to local synthesis on timeout
@@ -68,7 +75,9 @@ class Settings(BaseSettings):
     # ── Unified LLM accessors (provider-agnostic call sites) ─────────
     @property
     def llm_provider(self) -> str:
-        """Active provider: 'gemini' (preferred) → 'openai' → 'none'."""
+        """Active provider: 'groq' (preferred) → 'gemini' → 'openai' → 'none'."""
+        if self.groq_api_key:
+            return "groq"
         if self.gemini_api_key:
             return "gemini"
         if self.openai_api_key:
@@ -77,15 +86,19 @@ class Settings(BaseSettings):
 
     @property
     def llm_api_key(self) -> str:
-        return self.gemini_api_key or self.openai_api_key
+        return self.groq_api_key or self.gemini_api_key or self.openai_api_key
 
     @property
     def llm_model(self) -> str:
+        if self.groq_api_key:
+            return self.groq_model
         return self.gemini_model if self.gemini_api_key else self.openai_model
 
     @property
     def llm_base_url(self) -> str | None:
-        """OpenAI-compatible base URL for Gemini; ``None`` for native OpenAI."""
+        """OpenAI-compatible base URL for Groq/Gemini; ``None`` for native OpenAI."""
+        if self.groq_api_key:
+            return self.groq_base_url
         return self.gemini_base_url if self.gemini_api_key else None
 
     @property

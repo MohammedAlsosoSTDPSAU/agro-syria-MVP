@@ -12,6 +12,7 @@ interface AgentThought {
 interface VisualizationData {
   type: "map" | "bar_chart";
   title_ar: string;
+  points?: { lat: number; lng: number; label_ar: string; intensity: number }[];
   bars?: { label_ar: string; value: number; color: "emerald" | "amber" | "red" }[];
   source_ar?: string;
 }
@@ -44,10 +45,41 @@ interface ChatRequest {
   user_context?: UserContext;
 }
 
-// ── Groq (OpenAI-compatible) direct call ────────────────────────────────
-// The ONLY reply path. Calls Groq via its OpenAI-compatible endpoint when
-// GROQ_API_KEY is present; on any failure returns null and the handler
-// replies with a simple Arabic error message (no templates, no fallback).
+// ── FastAPI (LangGraph + RAG pipeline) — tried first ────────────────────
+// Proxies to the Python backend's real multi-agent pipeline when FASTAPI_URL
+// is set and it responds successfully; on any failure returns null and the
+// handler falls through to the direct Groq call below.
+
+async function callFastAPI(body: ChatRequest): Promise<ChatResponse | null> {
+  const url = process.env.FASTAPI_URL;
+  if (!url) return null;
+
+  try {
+    const res = await fetch(`${url}/api/agent/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: body.message,
+        session_id: body.session_id,
+        image_base64: body.image_base64,
+        user_context: body.user_context,
+      }),
+      signal: AbortSignal.timeout(25_000),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.reply) return null;
+    return data as ChatResponse;
+  } catch {
+    return null;
+  }
+}
+
+// ── Groq (OpenAI-compatible) direct call — fallback ──────────────────────
+// Calls Groq via its OpenAI-compatible endpoint when GROQ_API_KEY is present;
+// on any failure returns null and the handler replies with a simple Arabic
+// error message (no templates, no further fallback).
 
 const GROQ_MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was retired from Groq's catalog
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
@@ -193,7 +225,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
 }
 
 // ── Route handler ───────────────────────────────────────────────────────
-// Groq, or a simple Arabic error. No templates, no intent detection.
+// FastAPI pipeline first, Groq second, or a simple Arabic error.
 
 export async function POST(req: NextRequest) {
   let body: ChatRequest;
@@ -203,10 +235,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
   }
 
-  const reply = await callGroq(body);
-  if (reply) return NextResponse.json(reply);
+  const fastApiReply = await callFastAPI(body);
+  if (fastApiReply) {
+    return NextResponse.json(fastApiReply, { headers: { "X-AI-Backend": "fastapi" } });
+  }
 
-  // Groq unavailable (missing key / quota / network / empty response).
+  const groqReply = await callGroq(body);
+  if (groqReply) {
+    return NextResponse.json(groqReply, { headers: { "X-AI-Backend": "groq" } });
+  }
+
+  // Neither backend available.
   const errorResponse: ChatResponse = {
     reply: "عذراً، تعذّر تجهيز الرد حالياً. يرجى المحاولة مرة أخرى بعد قليل.",
     session_id: body.session_id ?? crypto.randomUUID(),

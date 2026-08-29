@@ -169,6 +169,18 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(market.router)
 
+    # ── Liveness / readiness probes (bare paths — for Render et al.) ──
+    # /health responds immediately regardless of RAG index state; /ready
+    # reflects whether the background FAISS build has finished.
+    @app.get("/health", include_in_schema=False)
+    async def bare_health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def bare_ready() -> dict[str, bool]:
+        from app.core.rag_engine import rag_ready
+        return {"ready": rag_ready()}
+
     return app
 
 

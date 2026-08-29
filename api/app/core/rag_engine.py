@@ -26,7 +26,7 @@ from typing import Any
 log = logging.getLogger("agro_syria.rag")
 
 _KB_DIR        = Path(__file__).resolve().parents[2] / "knowledge_base"
-_NEURAL_MODEL  = "paraphrase-multilingual-MiniLM-L12-v2"
+_NEURAL_MODEL  = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # fastembed requires the fully-qualified name
 _CHUNK_WORDS   = 280   # smaller chunks → higher precision per result
 _CHUNK_OVERLAP = 40
 
@@ -63,9 +63,15 @@ def search_knowledge_base(query: str, k: int = 3) -> list[dict[str, Any]]:
 
 def warmup_rag() -> None:
     """Pre-load the model and build the FAISS index. Call once at startup."""
+    log.info("[startup] Building FAISS index...")
     try:
         eng = get_rag_engine()
         eng.ensure_ready()
+        n_pdfs = len({c["source"] for c in eng.chunks})
+        log.info(
+            "[startup] FAISS index ready — %d chunks from %d PDFs",
+            len(eng.chunks), n_pdfs,
+        )
         log.info(
             "RAG engine ready — backend=%s chunks=%d sources=%s",
             "neural" if eng.uses_neural else "TF-IDF",
@@ -78,6 +84,11 @@ def warmup_rag() -> None:
         )
     except Exception as exc:
         log.warning("RAG warm-up failed (%s) — knowledge search unavailable", type(exc).__name__)
+
+
+def rag_ready() -> bool:
+    """True once the FAISS index has finished building (for /ready probes)."""
+    return get_rag_engine()._ready
 
 
 def force_reindex() -> dict[str, Any]:

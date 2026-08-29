@@ -15,11 +15,18 @@ langchain-openai>=0.2.10
 # ── HTTP client (for agent-to-agent or external API calls) ───────────
 httpx>=0.27.0
 
-# ── Vision (image-based disease analysis) ─────────────────────────────
-google-generativeai>=0.7.0
+# ── LLM client — directly imported by synthesizer_agent.py / graph.py's
+# vision node / main.py's startup probe (all providers, incl. Groq, are
+# reached through this SDK's OpenAI-compatible interface with a per-provider
+# base_url) ─────────────────────────────────────────────────────────────
+openai>=1.40.0
 
 # ── RAG — neural Arabic embeddings + vector store ────────────────────
-# faiss-cpu>=1.8.0           # disabled on free tier (heavy) — fastembed/TF-IDF cover fallback
+# faiss-cpu is NOT optional: rag_engine.py builds a faiss.IndexFlatIP index
+# unconditionally in both the neural and TF-IDF code paths, so RAG silently
+# returns zero results without it — it was previously commented out under a
+# mistaken assumption that fastembed/TF-IDF were a full fallback for it too.
+faiss-cpu>=1.8.0
 scikit-learn>=1.4.0          # TF-IDF fallback when neural unavailable
 numpy>=1.25,<2               # pinned: torch 2.2.x compiled against NumPy 1.x ABI
 fastembed>=0.3.0             # ONNX-based embeddings — primary backend, no PyTorch needed
