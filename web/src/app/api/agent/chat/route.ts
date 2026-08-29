@@ -49,7 +49,7 @@ interface ChatRequest {
 // GROQ_API_KEY is present; on any failure returns null and the handler
 // replies with a simple Arabic error message (no templates, no fallback).
 
-const GROQ_MODEL = "llama-3.3-70b-versatile"; // stronger Arabic quality via OpenAI-compatible API
+const GROQ_MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was retired from Groq's catalog
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 const GROQ_SYSTEM_PROMPT = `أنت مهندس زراعي خبير في منصة "أغرو-سيريا"، مرجع استشاري متخصص في الزراعة السورية حصراً.
