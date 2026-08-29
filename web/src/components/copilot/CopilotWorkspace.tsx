@@ -43,9 +43,9 @@ interface Message {
 type Bezier = [number, number, number, number];
 const EASE: Bezier = [0.22, 1, 0.36, 1];
 
-const STORAGE_MESSAGES  = "agro_copilot_v2_messages";
-const STORAGE_SESSION   = "agro_copilot_v1_session";
-const STORAGE_KNOWLEDGE = "agro_copilot_v1_knowledge";
+const STORAGE_MESSAGES  = "agro_copilot_v3_messages";
+const STORAGE_SESSION   = "agro_copilot_v3_session";
+const STORAGE_KNOWLEDGE = "agro_copilot_v3_knowledge";
 const MAX_IMAGE_BYTES   = 5 * 1024 * 1024;
 
 // ── Mock library data ─────────────────────────────────────────────────
@@ -1189,9 +1189,14 @@ function AgentOperatingCenter({
           </p>
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
             {LIVE_METRICS.map((m) => (
-              <div key={m.label} className="flex items-center justify-between" dir="rtl">
-                <span className="text-[10px] text-muted-foreground/55">{m.label}</span>
-                <span className={cn("text-[11px] font-bold font-numeric", m.color)}>{m.value}</span>
+              <div key={m.label} dir="rtl">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground/55">{m.label}</span>
+                  <span className={cn("text-[11px] font-bold font-numeric", m.color)}>{m.value}</span>
+                </div>
+                <span className="text-[8px] text-muted-foreground/30 block">
+                  بيانات تجريبية
+                </span>
               </div>
             ))}
           </div>

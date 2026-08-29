@@ -88,7 +88,6 @@ export async function streamChat(
   }
 
   if (!res.ok) {
-    console.error("[ai-service] /api/agent/chat returned", res.status, res.statusText);
     onError("خطأ في الخادم — جرّب مرة ثانية");
     return;
   }

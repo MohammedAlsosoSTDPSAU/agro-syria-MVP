@@ -139,14 +139,8 @@ function buildUserContent(req: ChatRequest): GroqContent {
 
 async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.error("[callGroq] returning null: GROQ_API_KEY is not set");
-    return null;
-  }
-  if (!req.message?.trim() && !req.image_base64) {
-    console.error("[callGroq] returning null: request has no message and no image");
-    return null; // nothing to answer
-  }
+  if (!apiKey) return null;
+  if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer
 
   try {
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
@@ -165,13 +159,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
       }),
       signal: AbortSignal.timeout(25_000),
     });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error(
-        `[callGroq] returning null: Groq API responded with status ${res.status} ${res.statusText}: ${errText}`
-      );
-      return null; // quota / auth / server error
-    }
+    if (!res.ok) return null; // quota / auth / server error
 
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
@@ -179,10 +167,7 @@ async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
     };
 
     const reply = (data.choices?.[0]?.message?.content ?? "").trim();
-    if (!reply) {
-      console.error("[callGroq] returning null: Groq response had empty content", data);
-      return null; // empty
-    }
+    if (!reply) return null; // empty
 
     const usage = data.usage;
     return {

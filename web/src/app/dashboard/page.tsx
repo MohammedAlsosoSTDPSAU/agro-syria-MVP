@@ -672,6 +672,9 @@ function WorkdayPlanner({ cropKey, cropNameAr, aiTasks }: { cropKey: string|null
             cy={sparkH - ((sparkData[sparkData.length-1]-min)/span)*(sparkH-10) - 5}
             r="2.5" fill={trendColor} />
         </svg>
+        <p className="text-[9px] text-muted-foreground/35 mt-1 text-center">
+          بيانات تجريبية
+        </p>
       </div>
     </motion.div>
   );
@@ -1035,6 +1038,9 @@ function MarketTrendCard({ cropKey, cropNameAr, province }: {
           </div>
         ))}
       </div>
+      <p className="text-[9px] text-muted-foreground/35 mt-1 text-center">
+        بيانات تجريبية
+      </p>
 
       <Link href="/dashboard/market">
         <motion.div whileHover={{ x:-3 }}
@@ -1174,7 +1180,7 @@ function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
 
     // Session cache keyed by province+crop: fetch the AI briefing once per session, and
     // refresh automatically only when the province or crop changes (key miss). This satisfies
-    // the "once per session / on context change" rule and avoids redundant Gemini calls.
+    // the "once per session / on context change" rule and avoids redundant AI calls.
     const aiCtx = buildContextFromStorage();
     const cacheKey = `agro_ai_briefing:${aiCtx.province ?? "-"}|${aiCtx.crop ?? "-"}`;
 
@@ -1188,7 +1194,7 @@ function IntelligenceDashboard({ onAskAI }: { onAskAI: () => void }) {
       }
     } catch { /* no/blocked sessionStorage → fall through to a fresh fetch */ }
 
-    // Cache miss → ask Gemini; graceful fallback to deterministic logic on any failure
+    // Cache miss → ask the AI agent; graceful fallback to deterministic logic on any failure
     setAiLoading(true);
     getAIIntegratedBriefing(aiCtx)
       .then((briefing) => {

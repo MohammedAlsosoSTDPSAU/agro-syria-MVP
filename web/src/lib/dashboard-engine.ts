@@ -395,7 +395,7 @@ function extractJson(raw: string): unknown | null {
 }
 
 /**
- * Generate a fresh, AI-driven dashboard briefing via Gemini.
+ * Generate a fresh, AI-driven dashboard briefing via the agent chat endpoint.
  * Returns null on any failure → caller falls back to deterministic buildDashboard().
  */
 export async function getAIIntegratedBriefing(ctx: AgroContext): Promise<AIBriefing | null> {
@@ -433,8 +433,8 @@ export async function getAIIntegratedBriefing(ctx: AgroContext): Promise<AIBrief
 يجب أن تغطي النصائح الثلاث: الري، الحصاد، ووقاية النبات. اجعل riskScore رقماً بين 0 و100 يمثل المخاطر العامة (0=آمن، 100=حرج). كل النصوص بالعربية والأرقام إنجليزية.`;
 
   // Returning null is the signal to fall back to the deterministic buildDashboard() briefing.
-  // Both failure paths below are EXPECTED while the Gemini quota is 0, so we log at debug level
-  // (not console.error) to keep the console clean and avoid tripping the Next.js error overlay.
+  // Both failure paths below are routine (offline, quota, unparseable reply), so we log at debug
+  // level (not console.error) to keep the console clean and avoid tripping the Next.js error overlay.
   let raw: string;
   try {
     raw = await getAgentInsight(prompt, enriched);

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Bot, Workflow, Server, ShieldCheck, FlaskConical,
+  Bot, Workflow, Server, ShieldCheck,
   Boxes, Cpu, Sparkles, HeartHandshake, ArrowLeft,
   LayoutGrid, LayoutDashboard, Map as MapIcon, CloudSun, Sprout,
   TrendingUp, Users, Newspaper, Settings, ChevronLeft,
@@ -23,19 +23,18 @@ const fadeUp = {
 };
 
 const STACK = [
-  { icon: Boxes,       name: "Next.js",         descAr: "واجهة فائقة السرعة بتقنية App Router" },
-  { icon: Server,      name: "FastAPI",         descAr: "خادم Python غير متزامن عالي الأداء" },
-  { icon: Workflow,    name: "LangGraph",       descAr: "تنسيق الوكلاء المتعددين كرسم حالة" },
-  { icon: ShieldCheck, name: "Pydantic",        descAr: "عقود بيانات صارمة بين الوكلاء" },
-  { icon: FlaskConical,name: "Automated Tests", descAr: "اختبارات pytest تحمي من الانحدار" },
-  { icon: Cpu,         name: "AI Agents",       descAr: "وكلاء متخصّصون يعملون بالتوازي" },
+  { icon: Boxes,       name: "Next.js",   descAr: "واجهة فائقة السرعة بتقنية App Router" },
+  { icon: Server,      name: "FastAPI",   descAr: "خادم Python غير متزامن عالي الأداء" },
+  { icon: Workflow,    name: "LangGraph", descAr: "تنسيق الوكلاء المتعددين كرسم حالة" },
+  { icon: ShieldCheck, name: "Pydantic",  descAr: "عقود بيانات صارمة بين الوكلاء" },
+  { icon: Cpu,         name: "AI Agents", descAr: "وكلاء متخصّصون يعملون بالتوازي" },
 ];
 
 const WORKSPACE_PAGES = [
   { icon: LayoutDashboard, name: "لوحة التحكم",   href: "/dashboard",         desc: "مركز القيادة: خريطة المخاطر، إحاطة ذكية، ومؤشر صحة المزرعة." },
   { icon: MapIcon,         name: "حقولي",          href: "/fields",            desc: "سجّل حقولك بإحداثيات دقيقة وتابع صحتها على الخريطة." },
   { icon: CloudSun,        name: "الطقس",          href: "/weather",           desc: "طقس لحظي لكل محافظة، توقّعات ٧ أيام، ومحرّك الري ET₀." },
-  { icon: Bot,             name: "المساعد الذكي",  href: "/copilot",           desc: "محادثة متعددة الوكلاء وتحليل صور الأمراض بلهجتك." },
+  { icon: Bot,             name: "المساعد الذكي",  href: "/copilot",           desc: "محادثة زراعية ذكية بلهجتك — تشخيص أمراض المحاصيل من الصور قريباً." },
   { icon: Sprout,          name: "المحاصيل",       href: "/crops",             desc: "موسوعة المحاصيل السورية وحاسبة الإنتاجية الموسمية." },
   { icon: TrendingUp,      name: "لوحة السوق",     href: "/dashboard/market",  desc: "أسعار واتجاهات السوق وتوصية بأفضل وقت للبيع." },
   { icon: Users,           name: "المجتمع",        href: "/community",         desc: "تبادل الخبرات والتعاون مع آلاف المزارعين السوريين." },
@@ -145,6 +144,9 @@ export default function AboutPage() {
           <div className="flex items-center gap-2 mb-4 px-1">
             <Bot className="w-5 h-5 text-emerald-400" />
             <h2 className="text-lg font-black text-foreground">فريق الوكلاء الذكي</h2>
+            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-full px-2.5 py-1">
+              نظام متعدد الوكلاء — قيد التطوير النشط
+            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {AGENTS.map((a, i) => (
@@ -201,13 +203,12 @@ export default function AboutPage() {
             </li>
             <li className="flex gap-2">
               <span className="text-emerald-400 mt-1">●</span>
-              عند تعذّر الخدمة السحابية، يتحوّل النظام تلقائياً إلى توليف محلّي — فلا تتوقّف
-              المنصّة أبداً عن خدمة المزارع.
+              عند تعذّر الاتصال بالخدمة السحابية، تُعلمك المنصّة بوضوح بدلاً من تقديم
+              إجابة غير دقيقة.
             </li>
             <li className="flex gap-2">
               <span className="text-emerald-400 mt-1">●</span>
-              عقود بيانات صارمة (Pydantic) واختبارات آلية (pytest) تضمن أن كل ردّ يمرّ بفحص
-              جودة قبل أن يصلك.
+              عقود بيانات صارمة (Pydantic) تُنظّم تبادل المعلومات بين طبقات النظام.
             </li>
           </ul>
         </motion.section>

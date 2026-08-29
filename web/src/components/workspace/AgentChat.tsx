@@ -438,7 +438,6 @@ export function AgentChat() {
         // No static fallback — surface the real error so connection issues are visible
         const display =
           errMsg || "عذراً، تعذّر الاتصال بمحرك الذكاء — تحقق من الاتصال وحاول مجدداً.";
-        console.error("[AgentChat] AI stream error:", errMsg);
         if (!usedStreaming) {
           setOffline(true); // mark the engine unreachable so the header reflects offline state
           setMessages((m) => [
