@@ -1,5 +1,7 @@
-// Unified AI service — thin client over /api/ai/chat
-// Used by AgentChat (streaming) and Dashboard/Weather/Crops (one-shot insights)
+// Unified AI service — thin client over /api/agent/chat
+// Used by AgentChat and Dashboard/Weather/Crops (one-shot insights).
+// /api/agent/chat replies with a single JSON object (no SSE), so streamChat
+// delivers the whole reply as one onChunk call rather than incremental chunks.
 
 export interface AgroContext {
   province?: string;
@@ -72,7 +74,7 @@ export async function streamChat(
 
   let res: Response;
   try {
-    res = await fetch("/api/ai/chat", {
+    res = await fetch("/api/agent/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, context, history, image_base64, image_media_type }),
@@ -85,48 +87,21 @@ export async function streamChat(
     return;
   }
 
-  // 503 = API key not configured
-  if (res.status === 503) {
-    console.error("[ai-service] /api/ai/chat returned 503 — GOOGLE_GEMINI_API_KEY missing");
-    onError("__NO_KEY__");
-    return;
-  }
-
   if (!res.ok) {
-    console.error("[ai-service] /api/ai/chat returned", res.status, res.statusText);
+    console.error("[ai-service] /api/agent/chat returned", res.status, res.statusText);
     onError("خطأ في الخادم — جرّب مرة ثانية");
     return;
   }
 
-  const reader = res.body?.getReader();
-  if (!reader) { onError("خطأ في القراءة"); return; }
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
+  // /api/agent/chat replies with a single JSON object, not an SSE stream.
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const payload = line.slice(6).trim();
-        if (payload === "[DONE]") { onDone(); return; }
-        try {
-          const parsed = JSON.parse(payload) as { type: string; text: string };
-          if (parsed.type === "text")  onChunk(parsed.text);
-          if (parsed.type === "error") onError(parsed.text);
-        } catch {}
-      }
-    }
-  } finally {
-    reader.releaseLock();
+    const data = (await res.json()) as { reply?: string };
+    const reply = data.reply ?? "";
+    if (reply) onChunk(reply);
     onDone();
+  } catch (err) {
+    console.error("[ai-service] failed to parse /api/agent/chat response:", err);
+    onError("خطأ في قراءة الرد");
   }
 }
 
