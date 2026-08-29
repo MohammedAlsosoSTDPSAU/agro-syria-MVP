@@ -15,10 +15,12 @@ Search strategy    : Hybrid — vector similarity (75%) + keyword matching (25%)
 
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import logging
 import re
 import threading
+import time
 import warnings
 from pathlib import Path
 from typing import Any
@@ -29,6 +31,20 @@ _KB_DIR        = Path(__file__).resolve().parents[2] / "knowledge_base"
 _NEURAL_MODEL  = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # fastembed requires the fully-qualified name
 _CHUNK_WORDS   = 280   # smaller chunks → higher precision per result
 _CHUNK_OVERLAP = 40
+
+# Hard wall-clock budget for the neural backend (model download + embed).
+# HuggingFace Hub downloads have no built-in timeout; a slow/stalled connection
+# (Render's free tier, unauthenticated HF requests are rate-limited) can block
+# the build thread indefinitely with no exception ever raised — from the
+# outside that looks identical to "the index never finishes building". 60s
+# also fails fast rather than risk loading a large ONNX model into Render's
+# 512MB RAM ceiling; on timeout the build falls back to the much lighter
+# TF-IDF backend immediately, no retry.
+_NEURAL_BUILD_TIMEOUT_S = 60
+
+# Layout-mode PDF extraction is memory-heavy; plain extraction is used for
+# files above this size to avoid MemoryError on Render's 512MB RAM.
+_LARGE_PDF_BYTES = 10 * 1024 * 1024
 
 # Readable titles for well-known plain-text knowledge files
 _KNOWN_TITLES: dict[str, str] = {
@@ -143,27 +159,63 @@ class RAGEngine:
 
     # ── Build ─────────────────────────────────────────────────────────
     def _build(self) -> None:
-        new_hash = _content_hash(self.kb_dir)
-        self.chunks = _load_all_chunks(self.kb_dir)
-        log.info("RAG ingested %d chunks from %d file(s)", len(self.chunks),
-                 len(list(self.kb_dir.glob("*.txt")) + list(self.kb_dir.glob("*.pdf"))))
-
-        if not self.chunks:
-            log.warning("knowledge_base/ is empty — RAG will return no results")
-            self._ready = True
-            self._hash  = new_hash
-            return
-
+        t0 = time.monotonic()
+        log.info("[rag-build] stage=start kb_dir=%s", self.kb_dir)
         try:
-            self._build_neural()
-            self.uses_neural = True
-        except Exception as exc:
-            log.info("Neural backend unavailable (%s) — using TF-IDF", type(exc).__name__)
-            self._build_tfidf()
-            self.uses_neural = False
+            new_hash = _content_hash(self.kb_dir)
+            log.info("[rag-build] stage=hash elapsed=%.1fs", time.monotonic() - t0)
 
-        self._hash  = new_hash
-        self._ready = True
+            self.chunks = _load_all_chunks(self.kb_dir)
+            log.info(
+                "[rag-build] stage=ingest elapsed=%.1fs chunks=%d files=%d",
+                time.monotonic() - t0, len(self.chunks),
+                len(list(self.kb_dir.glob("*.txt")) + list(self.kb_dir.glob("*.pdf"))),
+            )
+
+            if not self.chunks:
+                log.warning("knowledge_base/ is empty — RAG will return no results")
+                self._hash = new_hash
+                self._ready = True
+                return
+
+            try:
+                self._build_neural_bounded()
+                self.uses_neural = True
+                log.info("[rag-build] stage=neural-done elapsed=%.1fs", time.monotonic() - t0)
+            except Exception as exc:
+                log.warning(
+                    "[RAG] Neural model download failed, falling back to TF-IDF (%s)", type(exc).__name__,
+                )
+                self._build_tfidf()
+                self.uses_neural = False
+                log.info("[rag-build] stage=tfidf-done elapsed=%.1fs", time.monotonic() - t0)
+
+            self._hash = new_hash
+            self._ready = True
+            log.info("[rag-build] stage=complete elapsed=%.1fs ready=True", time.monotonic() - t0)
+        except Exception as exc:
+            # Any unexpected failure in hashing/ingestion (corrupt file, disk
+            # error, MemoryError parsing a large PDF, ...) is logged clearly
+            # and leaves `_ready` False — /ready correctly reports "not
+            # built" instead of silently masking a broken index. The next
+            # ensure_ready()/search() call will retry the build.
+            log.error("[RAG] Index build failed: %s", exc, exc_info=True)
+            self._ready = False
+
+    def _build_neural_bounded(self) -> None:
+        """Run :meth:`_build_neural` under a hard wall-clock budget.
+
+        The stuck thread (if any) is abandoned on timeout — Python cannot
+        forcibly kill a thread — but it no longer blocks startup. If it later
+        finishes on its own, its result is simply discarded; a later
+        force_reindex() will redo the work cleanly.
+        """
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="rag-neural-build")
+        future = executor.submit(self._build_neural)
+        try:
+            future.result(timeout=_NEURAL_BUILD_TIMEOUT_S)
+        finally:
+            executor.shutdown(wait=False)
 
     def _build_neural(self) -> None:
         import numpy as np
@@ -174,12 +226,16 @@ class RAGEngine:
         # ── Primary: fastembed (ONNX Runtime — no PyTorch, fast on CPU) ──
         try:
             from fastembed import TextEmbedding
-            log.info("Loading fastembed ONNX model: %s", _NEURAL_MODEL)
+            t_model = time.monotonic()
+            log.info("[rag-build] stage=fastembed-load model=%s (downloads on first run — may take minutes)", _NEURAL_MODEL)
             fe_model = TextEmbedding(
                 model_name=_NEURAL_MODEL,
                 threads=2,
             )
+            log.info("[rag-build] stage=fastembed-loaded elapsed=%.1fs", time.monotonic() - t_model)
+            log.info("[rag-build] stage=embedding-start chunks=%d", len(texts))
             vecs = np.array(list(fe_model.embed(texts)), dtype="float32")
+            log.info("[rag-build] stage=embedding-done elapsed=%.1fs", time.monotonic() - t_model)
             norms = np.linalg.norm(vecs, axis=1, keepdims=True)
             norms[norms == 0] = 1.0
             vecs /= norms
@@ -315,12 +371,17 @@ def _load_all_chunks(kb_dir: Path) -> list[dict[str, Any]]:
     for path in sorted(kb_dir.glob("*.txt")):
         text = path.read_text(encoding="utf-8")
         chunks.extend(_chunk_pages([(1, text)], path.name))
-    for path in sorted(kb_dir.glob("*.pdf")):
+
+    pdf_paths = sorted(kb_dir.glob("*.pdf"))
+    total = len(pdf_paths)
+    for i, path in enumerate(pdf_paths, 1):
         pages = _extract_pdf(path)
         if pages:
             chunks.extend(_chunk_pages(pages, path.name))
         else:
             log.warning("PDF %s yielded no text (may be image-only — OCR needed)", path.name)
+        if i % 5 == 0 or i == total:
+            log.info("[RAG] Indexed %d/%d PDFs...", i, total)
     return chunks
 
 
@@ -335,11 +396,20 @@ def _extract_pdf(path: Path) -> list[tuple[int, str]]:
         log.warning("pypdf not installed — skipping %s", path.name)
         return []
 
+    # Layout mode is memory-heavy — skip it for large files (Render 512MB RAM).
+    is_large = path.stat().st_size > _LARGE_PDF_BYTES
+    extract_kwargs = {} if is_large else {"extraction_mode": "layout"}
+
     try:
         reader = PdfReader(str(path))
         pages: list[tuple[int, str]] = []
         for i, page in enumerate(reader.pages, 1):
-            text = page.extract_text(extraction_mode="layout") or ""
+            try:
+                text = page.extract_text(**extract_kwargs) or ""
+            except Exception as exc:
+                # One malformed page must not lose the rest of the document.
+                log.warning("Failed to extract page %d of %s: %s", i, path.name, exc)
+                continue
             # Collapse excessive whitespace that PDFs often produce
             text = re.sub(r"[ \t]{3,}", "  ", text)
             text = re.sub(r"\n{4,}", "\n\n\n", text)
