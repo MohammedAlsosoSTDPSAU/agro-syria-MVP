@@ -237,6 +237,26 @@ def _apply_user_context_fallback(slots: dict[str, Any], user_context: dict[str, 
             slots["crop"] = crops[0]
 
 
+def _merge_pending_slots(pending: dict[str, Any], text: str) -> tuple[str, dict[str, Any]]:
+    """Merge a follow-up message's slots into a prior turn's pending slot-ask.
+
+    ``pending`` is ``{"intent": ..., "slots": {...}}`` saved by the chat route
+    when the previous turn ended in a slot-ask (see ``app.core.session_store``).
+    Slots are re-extracted from ``text`` *using the pending intent* — a bare
+    follow-up like "45 يوم" carries no keyword that would let ``_detect_intent``
+    recover "irrigation" on its own, so the pending intent is what makes the
+    extraction regex (crop age, area, ph, ...) apply at all. New values fill
+    gaps in the old slots; a slot the message actually mentions overrides the
+    old value, but a slot the message doesn't mention never clobbers a
+    previously known one with ``None``.
+    """
+    intent = pending.get("intent") or "general"
+    old_slots = dict(pending.get("slots") or {})
+    new_slots = _extract_slots(intent, text)
+    merged = {**old_slots, **{k: v for k, v in new_slots.items() if v is not None}}
+    return intent, merged
+
+
 def _build_slot_ask(intent: str, slots: dict[str, Any]) -> str | None:
     missing: list[str] = []
 
@@ -303,7 +323,8 @@ async def liaison_node(state: GraphState) -> dict[str, Any]:
     inp = LiaisonInput(raw_query=str(user_msg), image_base64=ctx.get("image_base64"))
     has_image = bool(inp.image_base64)
 
-    log.info("وكيل التواصل — image=%s msg=%.60s", has_image, inp.raw_query)
+    pending = ctx.get("pending")
+    log.info("وكيل التواصل — image=%s msg=%.60s pending=%s", has_image, inp.raw_query, bool(pending))
 
     if has_image:
         out = LiaisonOutput(
@@ -327,8 +348,20 @@ async def liaison_node(state: GraphState) -> dict[str, Any]:
         )
         return _liaison_update(out)
 
-    intent = _detect_intent(inp.raw_query)
-    slots = _extract_slots(intent, inp.raw_query)
+    if pending:
+        fresh_intent = _detect_intent(inp.raw_query)
+        if fresh_intent in ("general", pending.get("intent")):
+            # Bare follow-up (e.g. "45 يوم") or a same-topic continuation —
+            # merge into the pending slot-ask instead of starting fresh.
+            intent, slots = _merge_pending_slots(pending, inp.raw_query)
+        else:
+            # The message clearly switched topics — don't force it into the
+            # old pending slot-ask.
+            intent = fresh_intent
+            slots = _extract_slots(intent, inp.raw_query)
+    else:
+        intent = _detect_intent(inp.raw_query)
+        slots = _extract_slots(intent, inp.raw_query)
     _apply_user_context_fallback(slots, ctx.get("user_context"))
     slot_ask = _build_slot_ask(intent, slots) if intent != "general" else None
 

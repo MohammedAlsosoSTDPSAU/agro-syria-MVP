@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.config import get_settings
 from app.core.graph import get_compiled_graph
 from app.core.logging import get_logger
+from app.core.session_store import get_session_store
 from app.orchestration.schemas import (
     LiaisonOutput,
     SynthesizerOutput,
@@ -56,6 +57,22 @@ def _resolve_output(ctx: dict) -> tuple[str, dict | None]:
     return "", None
 
 
+def _pending_from_liaison_ctx(ctx: dict) -> dict | None:
+    """Derive next turn's session-store ``pending`` from this turn's Liaison output.
+
+    Non-``None`` only when this turn itself ended in a slot-ask — a resolved
+    or unrelated turn clears any prior pending state so it never leaks into
+    an unrelated follow-up.
+    """
+    liaison = ctx.get("liaison_output")
+    if liaison is None:
+        return None
+    lo = coerce(LiaisonOutput, liaison)
+    if not lo.missing_slots:
+        return None
+    return {"intent": lo.intent, "slots": lo.slots}
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or str(uuid.uuid4())
@@ -64,6 +81,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     settings = get_settings()
     graph = get_compiled_graph()
+    store = get_session_store()
+    session = store.get(session_id)
 
     run_config: RunnableConfig = {
         "tags": ["agro-syria", "chat", settings.app_env] + (["vision"] if has_image else []),
@@ -78,18 +97,23 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     final_state = await graph.ainvoke(
         {
-            "messages": [HumanMessage(content=request.message or "ما تشوف في هالصورة؟")],
+            "messages": [*session.messages, HumanMessage(content=request.message or "ما تشوف في هالصورة؟")],
             "sender": "user",
             "agricultural_context": {
                 "image_base64": request.image_base64,
                 "user_context": request.user_context.model_dump() if request.user_context else None,
+                "pending": session.pending,
             },
         },
         config=run_config,
     )
 
+    # Only this turn's messages — session.messages (prior turns, now prepended
+    # into the graph input) must not resurface as if they just happened.
+    turn_messages = final_state["messages"][len(session.messages):]
+
     chain: list[AgentThought] = []
-    for msg in final_state["messages"]:
+    for msg in turn_messages:
         if not isinstance(msg, AIMessage):
             continue
         meta = _AGENT_META.get(msg.name or "")  # type: ignore[arg-type]
@@ -112,6 +136,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
         reply = "عذراً، حدث خطأ. حاول مرة أخرى."
 
     log.info("reply len=%d viz=%s", len(reply), bool(raw_viz))
+
+    store.save(session_id, messages=final_state["messages"], pending=_pending_from_liaison_ctx(final_ctx))
 
     viz: VisualizationData | None = None
     if raw_viz:
@@ -144,6 +170,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
 
     settings = get_settings()
     graph = get_compiled_graph()
+    store = get_session_store()
+    session = store.get(session_id)
 
     run_config: RunnableConfig = {
         "tags": ["agro-syria", "chat", "stream", settings.app_env] + (["vision"] if has_image else []),
@@ -157,22 +185,28 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     }
 
     initial_state = {
-        "messages": [HumanMessage(content=request.message or "ما تشوف في هالصورة؟")],
+        "messages": [*session.messages, HumanMessage(content=request.message or "ما تشوف في هالصورة؟")],
         "sender": "user",
         "agricultural_context": {
             "image_base64": request.image_base64,
             "user_context": request.user_context.model_dump() if request.user_context else None,
+            "pending": session.pending,
         },
     }
 
     async def event_generator():
-        last_count = 0
+        # Start counting from the prior turns' message count — session.messages
+        # is already prepended into initial_state, so those must not resurface
+        # as "new" thought events for this turn.
+        last_count = len(session.messages)
         final_ctx: dict = {}
+        final_messages: list = []
         try:
             async for state in graph.astream(initial_state, config=run_config, stream_mode="values"):
                 messages = state.get("messages", [])
                 new_messages = messages[last_count:]
                 last_count = len(messages)
+                final_messages = messages
 
                 for msg in new_messages:
                     if not isinstance(msg, AIMessage):
@@ -189,6 +223,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     yield f"data: {json.dumps({'type': 'thought', **thought.model_dump()}, ensure_ascii=False)}\n\n"
 
                 final_ctx = state.get("agricultural_context", {})
+
+            store.save(session_id, messages=final_messages, pending=_pending_from_liaison_ctx(final_ctx))
 
             reply, raw_viz = _resolve_output(final_ctx)
             if not reply:
