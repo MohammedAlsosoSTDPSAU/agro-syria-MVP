@@ -1,0 +1,26 @@
+name: keep-alive
+
+# Unofficial mitigation for Render free-tier spin-down (idle >15min sleeps the
+# service; the first request after that can take 50+ seconds). Pinging every
+# 10 minutes reduces how often that happens — it is NOT a guarantee, Render
+# can still restart a free instance at any time; upgrading to a paid Render
+# plan is the reliable fix if this stops being sufficient.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS --max-time 120 https://agro-syria-api.onrender.com/api/health)
+          echo "Response: $response"
+          echo "$response" | grep -q '"status"' || {
+            echo "::error::Health response did not look like real app JSON — got: $response"
+            exit 1
+          }
