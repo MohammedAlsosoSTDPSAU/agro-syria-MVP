@@ -1,7 +1,8 @@
-// Unified AI service — thin client over /api/agent/chat
-// Used by AgentChat and Dashboard/Weather/Crops (one-shot insights).
-// /api/agent/chat replies with a single JSON object (no SSE), so streamChat
-// delivers the whole reply as one onChunk call rather than incremental chunks.
+// Unified AI service — thin client over /api/agent/chat/stream (SSE).
+// Used by AgentChat, Dashboard/Weather/Crops (one-shot insights), and
+// CopilotWorkspace (which also wants live onThought updates).
+
+import type { AgentThought, UserContext, VisualizationData } from "@/lib/api";
 
 export interface AgroContext {
   province?: string;
@@ -56,7 +57,13 @@ export function buildContextFromStorage(): AgroContext {
   return ctx;
 }
 
-/* ─── Streaming chat ─────────────────────────────────────────────────── */
+/* ─── Streaming chat (SSE over /api/agent/chat/stream) ───────────────── */
+
+interface StreamChatDoneMeta {
+  session_id: string;
+  visualization?: VisualizationData | null;
+}
+
 export async function streamChat(
   message: string,
   options: {
@@ -64,20 +71,23 @@ export async function streamChat(
     history?: ChatHistoryItem[];
     image_base64?: string;
     image_media_type?: "image/jpeg" | "image/png" | "image/webp";
+    session_id?: string;
+    user_context?: UserContext;
     onChunk: (text: string) => void;
-    onDone: () => void;
+    onThought?: (thought: AgentThought) => void;
+    onDone: (meta?: StreamChatDoneMeta) => void;
     onError: (msg: string) => void;
     signal?: AbortSignal;
   }
 ): Promise<void> {
-  const { context = {}, history = [], image_base64, image_media_type, onChunk, onDone, onError, signal } = options;
+  const { image_base64, session_id, user_context, onChunk, onThought, onDone, onError, signal } = options;
 
   let res: Response;
   try {
-    res = await fetch("/api/agent/chat", {
+    res = await fetch("/api/agent/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, context, history, image_base64, image_media_type }),
+      body: JSON.stringify({ message, session_id, image_base64, user_context }),
       signal,
     });
   } catch (err) {
@@ -87,20 +97,60 @@ export async function streamChat(
     return;
   }
 
-  if (!res.ok) {
+  if (!res.ok || !res.body) {
     onError("خطأ في الخادم — جرّب مرة ثانية");
     return;
   }
 
-  // /api/agent/chat replies with a single JSON object, not an SSE stream.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
   try {
-    const data = (await res.json()) as { reply?: string };
-    const reply = data.reply ?? "";
-    if (reply) onChunk(reply);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let sepIdx: number;
+      while ((sepIdx = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, sepIdx);
+        buffer = buffer.slice(sepIdx + 2);
+
+        const line = rawEvent.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        const jsonText = line.slice(5).trim();
+        if (!jsonText) continue;
+
+        let evt: Record<string, unknown>;
+        try {
+          evt = JSON.parse(jsonText);
+        } catch {
+          continue; // malformed chunk — skip rather than abort the whole stream
+        }
+
+        if (evt.type === "thought") {
+          onThought?.(evt as unknown as AgentThought);
+        } else if (evt.type === "final") {
+          const reply = typeof evt.reply === "string" ? evt.reply : "";
+          if (reply) onChunk(reply);
+          onDone({
+            session_id: (evt.session_id as string) ?? "",
+            visualization: (evt.visualization as VisualizationData | null) ?? null,
+          });
+          return;
+        } else if (evt.type === "error") {
+          onError(typeof evt.message === "string" ? evt.message : "حدث خطأ أثناء المعالجة");
+          return;
+        }
+      }
+    }
+    // Stream closed without a "final"/"error" event — treat as done with no reply.
     onDone();
   } catch (err) {
-    console.error("[ai-service] failed to parse /api/agent/chat response:", err);
-    onError("خطأ في قراءة الرد");
+    if ((err as Error).name === "AbortError") return;
+    console.error("[ai-service] stream read failed:", err);
+    onError("انقطع الاتصال أثناء استقبال الرد");
   }
 }
 

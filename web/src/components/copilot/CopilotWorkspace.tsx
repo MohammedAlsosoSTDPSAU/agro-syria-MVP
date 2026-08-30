@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sendChatMessage, type AgentThought, type VisualizationData } from "@/lib/api";
+import { streamChat } from "@/lib/ai-service";
 import { VisualWorkspace } from "@/components/workspace/VisualWorkspace";
 import { AgroLogo } from "@/components/icons/AgroLogo";
 import {
@@ -183,22 +184,6 @@ const PROACTIVE_ALERTS = [
   "وكيل التربة يُشير: انخفاض رطوبة التربة دون 40% في حقول حلب — يُوصى بري فجري فوري.",
 ];
 
-// ── Thinking steps ────────────────────────────────────────────────────
-
-const THINKING_STEPS = {
-  base: [
-    { agentAr: "وكيل التواصل",       actionAr: "جارٍ استقبال رسالتك وتجهيز الرد..." },
-    { agentAr: "وكيل البحث العلمي",  actionAr: "جارٍ البحث في المكتبة الزراعية السورية..." },
-    { agentAr: "المخطط الاستراتيجي", actionAr: "جارٍ تحليل المعطيات الزراعية..." },
-  ],
-  vision: [
-    { agentAr: "وكيل التواصل",          actionAr: "جارٍ استقبال رسالتك وتجهيز الرد..." },
-    { agentAr: "خبير المعاينة البصرية",  actionAr: "وكيل الرؤية يحلل الصورة المرفقة..." },
-    { agentAr: "وكيل البحث العلمي",     actionAr: "رصد إصابة محتملة — جارٍ البحث عن التفاصيل..." },
-    { agentAr: "المخطط الاستراتيجي",    actionAr: "جارٍ تحليل المعطيات الزراعية..." },
-  ],
-} as const;
-
 // ── Welcome ───────────────────────────────────────────────────────────
 
 function makeWelcome(): Message {
@@ -327,20 +312,13 @@ function ThinkingDots() {
   );
 }
 
-function ThinkingBubble({ hasImage }: { hasImage: boolean }) {
-  const steps = hasImage ? THINKING_STEPS.vision : THINKING_STEPS.base;
-  const [stepIdx, setStepIdx] = useState(0);
-
-  useEffect(() => { setStepIdx(0); }, [hasImage]);
-
-  useEffect(() => {
-    if (stepIdx >= steps.length - 1) return;
-    const delay = stepIdx === 0 ? 1800 : 2400;
-    const id = setTimeout(() => setStepIdx((i) => Math.min(i + 1, steps.length - 1)), delay);
-    return () => clearTimeout(id);
-  }, [stepIdx, steps.length]);
-
-  const { agentAr, actionAr } = steps[stepIdx];
+function ThinkingBubble({ thoughts }: { thoughts: AgentThought[] }) {
+  // Renders the real chain-of-thought as it streams in (no more fake
+  // timer/step-cycling) — same role_ar/thought fields the CoT drawer uses,
+  // just live: latest thought replaces the previous one as new ones arrive.
+  const latest = thoughts[thoughts.length - 1];
+  const roleAr = latest?.role_ar ?? "وكيل التواصل";
+  const thoughtText = latest?.thought ?? "جارٍ استقبال رسالتك وتجهيز الرد...";
 
   return (
     <motion.div
@@ -356,15 +334,15 @@ function ThinkingBubble({ hasImage }: { hasImage: boolean }) {
       <div className="glass-card rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
         <AnimatePresence mode="wait">
           <motion.div
-            key={stepIdx}
+            key={thoughts.length}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
           >
-            <p className="text-[10px] text-emerald-400/80 font-semibold mb-1.5">{agentAr}</p>
+            <p className="text-[10px] text-emerald-400/80 font-semibold mb-1.5">{roleAr}</p>
             <div className="flex items-center gap-2.5">
-              <span className="text-xs text-muted-foreground/70">{actionAr}</span>
+              <span className="text-xs text-muted-foreground/70">{thoughtText}</span>
               <ThinkingDots />
             </div>
           </motion.div>
@@ -1274,7 +1252,7 @@ function AgentOperatingCenter({
 interface ChatCenterProps {
   messages: Message[];
   thinking: boolean;
-  thinkingHasImage: boolean;
+  streamingThoughts: AgentThought[];
   input: string;
   onInputChange: (v: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -1302,7 +1280,7 @@ interface ChatCenterProps {
 }
 
 function ChatCenter({
-  messages, thinking, thinkingHasImage,
+  messages, thinking, streamingThoughts,
   input, onInputChange, onKeyDown, onSend,
   imagePreview, imageBase64, imageError,
   onAttach, onFileChange, onClearImage, fileInputRef,
@@ -1417,7 +1395,7 @@ function ChatCenter({
               isRetrying={retryingId === msg.id}
             />
           ))}
-          {thinking && <ThinkingBubble key="__thinking__" hasImage={thinkingHasImage} />}
+          {thinking && <ThinkingBubble key="__thinking__" thoughts={streamingThoughts} />}
         </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
@@ -1628,7 +1606,7 @@ export function CopilotWorkspace() {
   const [messages, setMessages]             = useState<Message[]>([makeWelcome()]);
   const [input, setInput]                   = useState(searchParams.get("q") ?? "");
   const [thinking, setThinking]             = useState(false);
-  const [thinkingHasImage, setThinkingHasImage] = useState(false);
+  const [streamingThoughts, setStreamingThoughts] = useState<AgentThought[]>([]);
   const [hydrated, setHydrated]             = useState(false);
   const [isEmergency, setIsEmergency]       = useState(false);
   const [isRecording, setIsRecording]       = useState(false);
@@ -1820,23 +1798,38 @@ export function CopilotWorkspace() {
     setIsEmergency(false);
     setLastMessage(msgText);
     setThinking(true);
-    setThinkingHasImage(!!msgB64);
+    setStreamingThoughts([]);
 
     try {
-      const res = await sendChatMessage({
-        message: emergency ? `[URGENT REPORT] ${msgText}` : msgText,
-        session_id: sessionId.current ?? undefined,
-        image_base64: msgB64 ?? undefined,
-        user_context: userContextRef.current,
+      const collectedThoughts: AgentThought[] = [];
+      let reply = "";
+      let doneMeta: { session_id: string; visualization?: VisualizationData | null } | undefined;
+      let streamError: string | null = null;
+
+      await new Promise<void>((resolve) => {
+        streamChat(emergency ? `[URGENT REPORT] ${msgText}` : msgText, {
+          session_id: sessionId.current ?? undefined,
+          image_base64: msgB64 ?? undefined,
+          user_context: userContextRef.current,
+          onThought: (t) => {
+            collectedThoughts.push(t);
+            setStreamingThoughts((prev) => [...prev, t]);
+          },
+          onChunk: (text) => { reply = text; },
+          onDone: (meta) => { doneMeta = meta; resolve(); },
+          onError: (msg) => { streamError = msg; resolve(); },
+        });
       });
 
-      if (!sessionId.current) {
-        sessionId.current = res.session_id;
-        storageSet(STORAGE_SESSION, res.session_id);
+      if (streamError) throw new Error(streamError);
+
+      if (!sessionId.current && doneMeta?.session_id) {
+        sessionId.current = doneMeta.session_id;
+        storageSet(STORAGE_SESSION, doneMeta.session_id);
       }
 
-      const detected = detectSmartCard(msgText, res.reply);
-      const replyProvince = detectProvince(msgText + " " + res.reply);
+      const detected = detectSmartCard(msgText, reply);
+      const replyProvince = detectProvince(msgText + " " + reply);
 
       if (detected?.type === "disease" && replyProvince) {
         setDiseaseProvince(replyProvince);
@@ -1851,18 +1844,18 @@ export function CopilotWorkspace() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          text: res.reply,
-          thoughts: res.chain_of_thought,
-          visualization: res.visualization ?? undefined,
+          text: reply,
+          thoughts: collectedThoughts,
+          visualization: doneMeta?.visualization ?? undefined,
           time: nowHHMM(),
           smartCard: detected?.type,
           smartCardMeta: detected?.meta,
         },
       ]);
     } catch (err) {
-      const isTimeout = err instanceof DOMException && err.name === "AbortError";
-      const errorText = isTimeout
-        ? "انتهت مهلة الاتصال — جارٍ إعادة الاتصال بالخبراء، حاول مجدداً."
+      // streamChat's onError already gives a specific, localized message.
+      const errorText = err instanceof Error && err.message
+        ? err.message
         : "تعذّر الوصول إلى شبكة الوكلاء — جارٍ إعادة الاتصال. تحقق من الاتصال بالإنترنت وأعد المحاولة.";
       setMessages((m) => [
         ...m,
@@ -1875,7 +1868,6 @@ export function CopilotWorkspace() {
       ]);
     } finally {
       setThinking(false);
-      setThinkingHasImage(false);
     }
   }, [input, imageBase64, imagePreview, isEmergency, thinking, editReplaceIds, clearImage]);
 
@@ -2088,7 +2080,7 @@ export function CopilotWorkspace() {
         <ChatCenter
           messages={messages}
           thinking={thinking}
-          thinkingHasImage={thinkingHasImage}
+          streamingThoughts={streamingThoughts}
           input={input}
           onInputChange={setInput}
           onKeyDown={handleKeyDown}

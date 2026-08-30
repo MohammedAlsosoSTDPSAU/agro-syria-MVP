@@ -17,7 +17,7 @@ interface VisualizationData {
   source_ar?: string;
 }
 
-interface ChatResponse {
+export interface ChatResponse {
   reply: string;
   session_id: string;
   chain_of_thought: AgentThought[];
@@ -38,7 +38,7 @@ interface UserContext {
   preferred_province?: string;
 }
 
-interface ChatRequest {
+export interface ChatRequest {
   message: string;
   session_id?: string;
   image_base64?: string;
@@ -169,7 +169,7 @@ function buildUserContent(req: ChatRequest): GroqContent {
   ];
 }
 
-async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
+export async function callGroq(req: ChatRequest): Promise<ChatResponse | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   if (!req.message?.trim() && !req.image_base64) return null; // nothing to answer
