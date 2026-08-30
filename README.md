@@ -6,6 +6,12 @@ FastAPI + LangGraph backend for the Agro-Syria precision-agriculture platform.
 
 ## Quick start
 
+The backend lives in `api/` — all commands below run from there.
+
+```bash
+cd api
+```
+
 ### 1 — Create and activate a virtual environment
 
 ```bash

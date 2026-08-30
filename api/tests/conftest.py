@@ -1,8 +1,7 @@
 """Shared pytest fixtures for the Agro-Syria agent test suite.
 
-The suite targets the canonical top-level ``app`` package (the ``api/app`` copy
-is byte-identical, kept in sync by the build steps), so a single suite at the
-repo root covers both.
+The suite targets ``api/app`` — the package actually deployed (see
+api/Dockerfile: build context ``api/``, entrypoint ``api/main.py``).
 """
 
 from __future__ import annotations
@@ -12,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-# Ensure the repo root (which contains the ``app`` package) is importable
-# regardless of pytest's import mode / invocation directory.
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# Ensure api/ (which contains the ``app`` package) is importable regardless of
+# pytest's import mode / invocation directory.
+_API_ROOT = Path(__file__).resolve().parent.parent
+if str(_API_ROOT) not in sys.path:
+    sys.path.insert(0, str(_API_ROOT))
 
 
 @pytest.fixture(scope="session", autouse=True)
