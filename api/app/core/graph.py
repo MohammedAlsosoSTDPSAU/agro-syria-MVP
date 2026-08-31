@@ -496,7 +496,7 @@ async def field_agent_node(state: GraphState) -> dict[str, Any]:
     # never blocks the event loop while it runs in parallel with the Research
     # node (LangGraph fan-out).
     combined_query = f"{inp.raw_query} {vision_description}".strip()
-    (tool_result, tool_summary), tips_text = await asyncio.gather(
+    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
         asyncio.to_thread(_run_tool, inp.intent, inp.slots),
         asyncio.to_thread(_compute_tips, combined_query),
     )
@@ -509,6 +509,7 @@ async def field_agent_node(state: GraphState) -> dict[str, Any]:
         tool_result=tool_result,
         tool_summary=tool_summary,
         contextual_tips=tips_text,
+        tool_used=tool_used,
     )
     return {
         "messages": [AIMessage(content=field_content, name="field")],
@@ -523,14 +524,19 @@ def _compute_tips(combined_query: str) -> str:
     return "\n\n".join(tips[:2]) if tips else ""
 
 
-def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None, str, str | None]:
     """Invoke the single tool matching *intent* (blocking → offloaded to a thread).
 
-    Returns ``(tool_result, tool_summary)``. Only one tool runs per request; the
-    branches are mutually exclusive by intent + slot availability.
+    Returns ``(tool_result, tool_summary, tool_used)``. Only one tool runs per
+    request; the branches are mutually exclusive by intent + slot availability.
+    ``tool_used`` is returned explicitly rather than left for the caller to
+    infer from ``intent`` alone — ``intent == "market"`` with no crop/region
+    yet falls through to a no-tool dashboard-guide message, so intent and
+    "a tool actually ran" are not always 1:1.
     """
     tool_result: dict[str, Any] | None = None
     tool_summary = ""
+    tool_used: str | None = None
 
     if intent == "irrigation" and slots.get("crop") and slots.get("area_dunums"):
         from app.tools.irrigation_tool import calculate_irrigation
@@ -539,6 +545,7 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
             area_dunums=float(slots["area_dunums"]),
             crop_age_days=int(slots.get("crop_age_days") or 60),
         )
+        tool_used = "irrigation"
         tool_summary = (
             f"📊 **حساب الري — {tool_result['crop']}**\n"
             f"• المساحة: {tool_result['area_dunums']} دونم · {tool_result['stage']}\n"
@@ -554,6 +561,7 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
             soil_type=slots["soil_type"],
             last_fertilized_days=int(slots.get("last_fertilized_days") or 30),
         )
+        tool_used = "soil"
         tool_summary = (
             f"🧪 **تحليل التربة**\n"
             f"• pH: {tool_result['ph']} → {tool_result['ph_status']}\n"
@@ -565,6 +573,7 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
     elif intent == "market" and slots.get("crop") and slots.get("region"):
         from app.tools.market_tool import get_syrian_market_prices
         tool_result = get_syrian_market_prices(crop=slots["crop"], region=slots["region"])
+        tool_used = "market"
         if "error" in tool_result:
             tool_summary = f"⚠️ {tool_result['error']}"
         else:
@@ -592,6 +601,7 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
     elif intent == "calendar" and slots.get("crop") and slots.get("altitude") is not None:
         from app.tools.calendar_tool import get_planting_schedule
         tool_result = get_planting_schedule(crop=slots["crop"], location_altitude=int(slots["altitude"]))
+        tool_used = "calendar"
         notes = f"\n• ملاحظة: {tool_result['agronomic_notes']}" if tool_result["agronomic_notes"] else ""
         tool_summary = (
             f"📅 **التقويم الزراعي — {tool_result['crop']}**\n"
@@ -601,7 +611,7 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
             f"{notes}"
         )
 
-    return tool_result, tool_summary
+    return tool_result, tool_summary, tool_used
 
 
 # Minimum RAG similarity score to treat a chunk as real grounding rather than

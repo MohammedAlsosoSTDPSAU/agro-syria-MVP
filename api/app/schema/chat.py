@@ -80,3 +80,7 @@ class ChatResponse(BaseModel):
     chain_of_thought: list[AgentThought]
     tokens_used: int | None = None
     visualization: VisualizationData | None = None
+    # Structured signals for frontend status displays (e.g. the "مركز
+    # العمليات" sidebar) — avoids re-parsing chain_of_thought free text.
+    intent: str | None = None
+    tool_used: str | None = None

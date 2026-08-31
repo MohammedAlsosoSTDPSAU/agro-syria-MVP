@@ -129,6 +129,10 @@ class CalculatorOutput(AgentIO):
     tool_result: dict[str, Any] | None = None
     tool_summary: str = ""
     contextual_tips: str = ""
+    # Which tool actually ran ("irrigation" | "soil" | "market" | "calendar"),
+    # or None if no tool ran (e.g. a general market inquiry with no crop/region
+    # yet — intent alone is not a reliable 1:1 signal for this).
+    tool_used: str | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

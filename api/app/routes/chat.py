@@ -14,6 +14,7 @@ from app.core.graph import get_compiled_graph
 from app.core.logging import get_logger
 from app.core.session_store import get_session_store
 from app.orchestration.schemas import (
+    CalculatorOutput,
     LiaisonOutput,
     SynthesizerOutput,
     VisionOutput,
@@ -71,6 +72,22 @@ def _pending_from_liaison_ctx(ctx: dict) -> dict | None:
     if not lo.missing_slots:
         return None
     return {"intent": lo.intent, "slots": lo.slots}
+
+
+def _intent_and_tool(ctx: dict) -> tuple[str | None, str | None]:
+    """Structured (intent, tool_used) pair for the API response.
+
+    Lets frontend status displays (e.g. the "مركز العمليات" sidebar) react to
+    what actually happened this turn without re-parsing chain_of_thought's
+    free-text markdown.
+    """
+    liaison = ctx.get("liaison_output")
+    intent = coerce(LiaisonOutput, liaison).intent if liaison is not None else None
+
+    calc = ctx.get("calculator_output")
+    tool_used = coerce(CalculatorOutput, calc).tool_used if calc is not None else None
+
+    return intent, tool_used
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -138,6 +155,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     log.info("reply len=%d viz=%s", len(reply), bool(raw_viz))
 
     store.save(session_id, messages=final_state["messages"], pending=_pending_from_liaison_ctx(final_ctx))
+    intent, tool_used = _intent_and_tool(final_ctx)
 
     viz: VisualizationData | None = None
     if raw_viz:
@@ -151,6 +169,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
         session_id=session_id,
         chain_of_thought=chain,
         visualization=viz,
+        intent=intent,
+        tool_used=tool_used,
     )
 
 
@@ -225,6 +245,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 final_ctx = state.get("agricultural_context", {})
 
             store.save(session_id, messages=final_messages, pending=_pending_from_liaison_ctx(final_ctx))
+            intent, tool_used = _intent_and_tool(final_ctx)
 
             reply, raw_viz = _resolve_output(final_ctx)
             if not reply:
@@ -242,6 +263,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 "reply": reply,
                 "visualization": viz.model_dump() if viz else None,
                 "session_id": session_id,
+                "intent": intent,
+                "tool_used": tool_used,
             }
             yield f"data: {json.dumps(final_payload, ensure_ascii=False)}\n\n"
         except Exception as exc:

@@ -206,15 +206,17 @@ class TestCalculatorMath:
 
     def test_run_tool_returns_typed_pair(self) -> None:
         slots = {"crop": "قمح", "area_dunums": 5, "crop_age_days": 60}
-        tool_result, summary = _run_tool("irrigation", slots)
+        tool_result, summary, tool_used = _run_tool("irrigation", slots)
         assert isinstance(tool_result, dict)
         assert tool_result["daily_litres_total"] == pytest.approx(2100)
         assert isinstance(summary, str) and summary.strip()
+        assert tool_used == "irrigation"
 
     def test_run_tool_incomplete_slots_is_noop(self) -> None:
-        tool_result, summary = _run_tool("irrigation", {"crop": "قمح"})
+        tool_result, summary, tool_used = _run_tool("irrigation", {"crop": "قمح"})
         assert tool_result is None
         assert summary == ""
+        assert tool_used is None
 
     def test_compute_tips_returns_string(self) -> None:
         tips = _compute_tips("ري القمح في الصيف")
