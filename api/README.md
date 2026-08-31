@@ -42,7 +42,6 @@ The API is now available at **http://localhost:8000**.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/health` | System health check |
-| `GET` | `/api/agents/status` | Live status of all 5 AI agents |
 | `GET` | `/api/docs` | Interactive Swagger UI |
 | `GET` | `/api/redoc` | ReDoc documentation |
 
@@ -56,23 +55,6 @@ The API is now available at **http://localhost:8000**.
   "version": "0.1.0-demo",
   "environment": "development",
   "message_ar": "النظام يعمل بشكل طبيعي ✓"
-}
-```
-
-**`GET /api/agents/status`**
-```json
-{
-  "agents": [
-    {
-      "id": "strategist",
-      "name_ar": "المخطط الاستراتيجي",
-      "status": "active",
-      "metric": "٣ خطط"
-    }
-  ],
-  "active_count": 4,
-  "total_count": 5,
-  "system_healthy": true
 }
 ```
 

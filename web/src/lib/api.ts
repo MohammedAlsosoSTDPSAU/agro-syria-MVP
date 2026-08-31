@@ -13,30 +13,6 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 
 // ── Response types (mirror app/schema/*.py exactly) ──────────────────
 
-export type AgentStatus =
-  | "active"
-  | "idle"
-  | "processing"
-  | "alert"
-  | "offline";
-
-export interface AgentInfo {
-  id: string;
-  name_en: string;
-  name_ar: string;
-  role_ar: string;
-  status: AgentStatus;
-  metric: string | null;
-  icon: string;
-}
-
-export interface AgentStatusResponse {
-  agents: AgentInfo[];
-  active_count: number;
-  total_count: number;
-  system_healthy: boolean;
-}
-
 export interface HealthResponse {
   status: string;
   system: string;
@@ -153,10 +129,6 @@ async function apiFetch<T>(
 
 export function fetchHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
-}
-
-export function fetchAgentStatus(): Promise<AgentStatusResponse> {
-  return apiFetch<AgentStatusResponse>("/api/agents/status");
 }
 
 export function fetchSoilData(): Promise<SoilResponse> {

@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.logging import get_logger, log_tracing_status, setup_logging
 from app.core.tracing import configure_tracing
-from app.routes import admin, agents, chat, fields, health, market
+from app.routes import admin, chat, fields, health, market
 
 # ── Bootstrap logging before anything else ───────────────────────────
 setup_logging(level=logging.INFO)
@@ -163,7 +163,6 @@ def create_app() -> FastAPI:
 
     # ── Routers ──────────────────────────────────────────────────────
     app.include_router(health.router)
-    app.include_router(agents.router)
     app.include_router(fields.router)
     app.include_router(chat.router)
     app.include_router(admin.router)
