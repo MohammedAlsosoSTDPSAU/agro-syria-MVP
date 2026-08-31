@@ -4,6 +4,7 @@ from app.orchestration.agent_orchestrator import (
     AgentOrchestrator,
     get_orchestrator,
 )
+from app.orchestration.domain_agent import generate_domain_reply
 from app.orchestration.synthesizer_agent import (
     SynthesizerAgent,
     get_synthesizer_agent,
@@ -14,4 +15,5 @@ __all__ = [
     "get_orchestrator",
     "SynthesizerAgent",
     "get_synthesizer_agent",
+    "generate_domain_reply",
 ]
