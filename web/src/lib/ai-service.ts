@@ -59,9 +59,11 @@ export function buildContextFromStorage(): AgroContext {
 
 /* ─── Streaming chat (SSE over /api/agent/chat/stream) ───────────────── */
 
-interface StreamChatDoneMeta {
+export interface StreamChatDoneMeta {
   session_id: string;
   visualization?: VisualizationData | null;
+  intent?: string | null;
+  tool_used?: string | null;
 }
 
 export async function streamChat(
@@ -137,6 +139,8 @@ export async function streamChat(
           onDone({
             session_id: (evt.session_id as string) ?? "",
             visualization: (evt.visualization as VisualizationData | null) ?? null,
+            intent: (evt.intent as string | null) ?? null,
+            tool_used: (evt.tool_used as string | null) ?? null,
           });
           return;
         } else if (evt.type === "error") {
