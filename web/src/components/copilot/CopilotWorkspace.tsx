@@ -127,28 +127,6 @@ const LIVE_METRICS = [
   { label: "رطوبة التربة (متوسط)", value: "68%",  color: "text-sky-400"     },
 ];
 
-const LIVE_LOG = [
-  { agent: "وكيل الطقس",    action: "يحلل البيانات المناخية للرقة..." },
-  { agent: "وكيل السوق",    action: "يحدّث أسعار الحبوب الأسبوعية..." },
-  { agent: "وكيل التربة",   action: "يعالج بيانات رطوبة حقول حلب..."  },
-  { agent: "كاشف الأمراض", action: "رصد إصابة محتملة في محافظة إدلب..." },
-];
-
-const REASONING_STREAM_BASE = [
-  { agentAr: "وكيل التواصل",       actionAr: "جلب سياق المحادثة وتحديد النية..." },
-  { agentAr: "وكيل البحث العلمي",  actionAr: "تمشيط المكتبة الزراعية السورية..." },
-  { agentAr: "وكيل الطقس",         actionAr: "جلب بيانات الطقس والمناخ المحلي..." },
-  { agentAr: "وكيل السوق",         actionAr: "مقارنة أسعار السوق في المحافظات..." },
-  { agentAr: "وكيل التربة",        actionAr: "جلب بيانات رطوبة التربة والحقول..." },
-  { agentAr: "المخطط الاستراتيجي", actionAr: "تجميع النتائج وصياغة التوصية النهائية..." },
-];
-
-const REASONING_STREAM_EMERGENCY = [
-  { agentAr: "وكيل الطوارئ",       actionAr: "تحليل البلاغ الطارئ وتحديد الأولوية..." },
-  { agentAr: "وكيل الطقس",         actionAr: "جلب بيانات الطقس الحرجة الفورية..." },
-  { agentAr: "كاشف الأمراض",       actionAr: "فحص سريع لقاعدة بيانات الآفات الخطرة..." },
-  { agentAr: "المستجيب الأول",      actionAr: "إعداد بروتوكول الاستجابة الطارئة..." },
-];
 
 const USER_FIELDS = [
   { id: "f1", nameAr: "حقل القمح الرئيسي",  area: 45, province: "حلب",  crop: "قمح",   health: 82 },
@@ -924,33 +902,20 @@ function IntelligenceLibrary({
 // RIGHT PANEL — Agent Operating Center
 // ════════════════════════════════════════════════════════════════════
 
-function agentProvinceFrom(msg: string, province: string | null): string {
-  if (province) return province;
-  const MAP: [RegExp, string][] = [
-    [/الحسكة|hasakah/i, "الحسكة"], [/حلب|aleppo/i, "حلب"],
-    [/دمشق|damascus/i, "دمشق"],   [/حمص|homs/i, "حمص"],
-    [/حماة|hama/i, "حماة"],       [/إدلب|idlib/i, "إدلب"],
-    [/الرقة|raqqa/i, "الرقة"],    [/دير الزور/i, "دير الزور"],
-    [/اللاذقية|latakia/i, "اللاذقية"], [/درعا|daraa/i, "درعا"],
-    [/طرطوس|tartus/i, "طرطوس"],   [/السويداء/i, "السويداء"],
-    [/القنيطرة/i, "القنيطرة"],
-  ];
-  for (const [rx, name] of MAP) if (rx.test(msg)) return name;
-  return "المنطقة";
+// Short, real excerpt of a specific agent's thought from this turn's live
+// streamingThoughts — replaces the old province/crop-regex template generators
+// (agentProvinceFrom / buildContextLog), which fabricated action text instead
+// of showing what actually happened.
+const EXCERPT_MAX = 60;
+
+function truncateThought(text: string): string {
+  const clean = text.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  return clean.length > EXCERPT_MAX ? clean.slice(0, EXCERPT_MAX) + "…" : clean;
 }
 
-function buildContextLog(msg: string, province: string | null) {
-  const p = agentProvinceFrom(msg, province);
-  const crop = /قمح/.test(msg) ? "القمح" : /قطن/.test(msg) ? "القطن"
-             : /زيتون/.test(msg) ? "الزيتون" : /شعير/.test(msg) ? "الشعير"
-             : /ذرة/.test(msg) ? "الذرة" : null;
-  const cropStr = crop ? ` لمحصول ${crop}` : "";
-  return [
-    { agent: "وكيل الطقس",    action: `يحلل بيانات السحب والرطوبة في ${p}...` },
-    { agent: "وكيل التربة",   action: `يحسب الاحتياجات المائية${cropStr} في ${p}...` },
-    { agent: "وكيل السوق",    action: `يرصد أسعار السوق الإقليمية في ${p}...` },
-    { agent: "كاشف الأمراض", action: `يفحص سجلات الآفات الموسمية${cropStr} في ${p}...` },
-  ];
+function excerptFor(thoughts: AgentThought[], agentKey: string): string | null {
+  const t = thoughts.find((th) => th.agent === agentKey);
+  return t?.thought ? truncateThought(t.thought) : null;
 }
 
 function AgentOperatingCenter({
@@ -959,10 +924,10 @@ function AgentOperatingCenter({
   highlightedProvince,
   diseaseProvince,
   climateLayer,
-  lastMessage,
   streamingThoughts,
   lastIntent,
   lastToolUsed,
+  lastVisualization,
   onToggleClimate,
   onProvinceClick,
 }: {
@@ -971,65 +936,55 @@ function AgentOperatingCenter({
   highlightedProvince: string | null;
   diseaseProvince: string | null;
   climateLayer: "heat" | "humidity" | null;
-  lastMessage: string;
   streamingThoughts: AgentThought[];
   lastIntent: string | null;
   lastToolUsed: string | null;
+  lastVisualization: VisualizationData | null;
   onToggleClimate: (layer: "heat" | "humidity") => void;
   onProvinceClick: (name: string) => void;
 }) {
-  const [logIdx, setLogIdx]       = useState(0);
-  const [streamIdx, setStreamIdx] = useState(0);
-  const stream = isEmergency ? REASONING_STREAM_EMERGENCY : REASONING_STREAM_BASE;
-
-  // Derive context-aware log — recompute when message changes
-  const contextLog = useMemo(
-    () => lastMessage ? buildContextLog(lastMessage, highlightedProvince) : LIVE_LOG,
-    [lastMessage, highlightedProvince],
-  );
-
-  // When thinking starts, reset log index so it cycles through context log from top
-  useEffect(() => {
-    if (thinking) setLogIdx(0);
-  }, [thinking, lastMessage]);
-
-  useEffect(() => {
-    const entries = thinking ? contextLog : LIVE_LOG;
-    const id = setInterval(() => setLogIdx((i) => (i + 1) % entries.length), thinking ? 2200 : 3500);
-    return () => clearInterval(id);
-  }, [thinking, contextLog]);
-
-  useEffect(() => {
-    if (!thinking) { setStreamIdx(0); return; }
-    const id = setInterval(() => setStreamIdx((i) => (i + 1) % stream.length), 1800);
-    return () => clearInterval(id);
-  }, [thinking, stream.length]);
-
-  // Compute live agent statuses — all agents activate when thinking
+  // Real per-turn activity only — no more regex-on-lastMessage or static
+  // templates. Weather has no real backend yet and is deliberately never
+  // wired to any signal (see its dedicated "not yet connected" styling below).
   const runtimeAgents = useMemo((): CopilotAgent[] => {
-    if (!thinking) return COPILOT_AGENTS;
-    const p = agentProvinceFrom(lastMessage, highlightedProvince);
-    const hasDisease = /مرض|آفة|صدأ|بياض|لفح|حشر/.test(lastMessage);
+    const fieldExcerpt = excerptFor(streamingThoughts, "field");
+    const synthExcerpt = excerptFor(streamingThoughts, "synthesizer");
+    const soilTouched   = lastToolUsed === "soil" || lastToolUsed === "irrigation";
+    const marketTouched = lastToolUsed === "market";
+    // An explicit "show me a map" request (intent === "visual") is not a
+    // disease alert — only an unprompted spread map is.
+    const diseaseAlert  = lastVisualization?.type === "map" && lastIntent !== "visual";
+    const ts = streamingThoughts.length > 0 ? nowHHMM() : "—";
+
     return COPILOT_AGENTS.map((a): CopilotAgent => {
       switch (a.id) {
         case "weather":
-          return { ...a, status: "active",     lastActionAr: `يحلل بيانات الطقس الزراعي في ${p}...` };
+          return { ...a, status: "idle", lastActionAr: "قريباً — ما في اتصال بمصدر طقس حقيقي بعد", metric: "—" };
+
         case "soil":
-          return { ...a, status: "processing", lastActionAr: `يفحص رطوبة التربة في ${p}...` };
+          return soilTouched
+            ? { ...a, status: thinking ? "processing" : "active", lastActionAr: fieldExcerpt ?? a.descAr, metric: ts }
+            : { ...a, status: "idle", lastActionAr: "بانتظار سؤال يخص التربة أو الري", metric: "—" };
+
         case "market":
-          return { ...a, status: "processing", lastActionAr: `يرصد الأسعار في أسواق ${p}...` };
+          return marketTouched
+            ? { ...a, status: thinking ? "processing" : "active", lastActionAr: fieldExcerpt ?? a.descAr, metric: ts }
+            : { ...a, status: "idle", lastActionAr: "بانتظار سؤال يخص الأسعار", metric: "—" };
+
         case "disease":
-          return { ...a,
-            status:      hasDisease ? "alert"  : "active",
-            lastActionAr: hasDisease ? `يحلل الآفات المُبلَّغ عنها في ${p}...` : `يراقب صحة المحاصيل في ${p}...`,
-          };
-        default: return a;
+          return diseaseAlert
+            ? { ...a, status: "alert", lastActionAr: synthExcerpt ?? a.descAr, metric: ts }
+            : { ...a, status: "idle", lastActionAr: "لم يُرصد أي إصابة بعد", metric: "—" };
+
+        default:
+          return a;
       }
     });
-  }, [thinking, lastMessage, highlightedProvince]);
+  }, [thinking, streamingThoughts, lastIntent, lastToolUsed, lastVisualization]);
 
   const activeCount = runtimeAgents.filter((a) => a.status === "active" || a.status === "processing").length;
   const alertCount  = runtimeAgents.filter((a) => a.status === "alert").length;
+  const latestThought = streamingThoughts[streamingThoughts.length - 1];
 
   return (
     <div className="w-72 flex-shrink-0 h-full hidden lg:flex flex-col glass-status-bar overflow-hidden">
@@ -1066,12 +1021,15 @@ function AgentOperatingCenter({
             const st  = STATUS_CFG[agent.status];
             const acc = ACCENT_CFG[agent.accent];
             const Icon = agent.icon;
+            // Weather has no real backend yet — deliberately, visibly distinct
+            // from the other three so it never reads as "just idle right now".
+            const notConnected = agent.id === "weather";
 
             return (
               <motion.div
                 key={agent.id}
                 initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
+                animate={{ opacity: notConnected ? 0.55 : 1, x: 0 }}
                 transition={{ delay: i * 0.07, duration: 0.35, ease: EASE }}
                 className={cn(
                   "rounded-xl border p-3 transition-colors duration-300",
@@ -1080,19 +1038,33 @@ function AgentOperatingCenter({
                 dir="rtl"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0", acc.iconBg)}>
-                    <Icon className={cn("w-4 h-4", acc.icon)} />
+                  <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+                    notConnected ? "bg-white/[0.04]" : acc.iconBg,
+                  )}>
+                    <Icon className={cn("w-4 h-4", notConnected ? "text-muted-foreground/40" : acc.icon)} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="text-[11px] font-bold text-foreground/90 flex-1">{agent.nameAr}</p>
-                      <span className="text-[9px] font-semibold font-numeric text-muted-foreground/55">{agent.metric}</span>
+                      <p className={cn(
+                        "text-[11px] font-bold flex-1",
+                        notConnected ? "text-muted-foreground/55" : "text-foreground/90",
+                      )}>
+                        {agent.nameAr}
+                      </p>
+                      {notConnected ? (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-muted-foreground/50">
+                          قريباً
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-semibold font-numeric text-muted-foreground/55">{agent.metric}</span>
+                      )}
                     </div>
                     <p className="text-[9px] text-muted-foreground/45 truncate mb-1">{agent.descAr}</p>
                     <div className="flex items-center gap-1.5">
                       <span className="relative flex-shrink-0 w-2 h-2">
-                        <span className={cn("w-2 h-2 rounded-full block", st.dot)} />
-                        {st.pulse && (
+                        <span className={cn("w-2 h-2 rounded-full block", notConnected ? "bg-slate-600" : st.dot)} />
+                        {st.pulse && !notConnected && (
                           <span className={cn("absolute inset-0 rounded-full animate-ping opacity-60", st.dot)} />
                         )}
                       </span>
@@ -1215,9 +1187,9 @@ function AgentOperatingCenter({
         </div>
         <div className="min-h-[34px] overflow-hidden">
           <AnimatePresence mode="wait">
-            {thinking ? (
+            {thinking && latestThought ? (
               <motion.div
-                key={`stream-${streamIdx}`}
+                key={streamingThoughts.length}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
@@ -1226,13 +1198,13 @@ function AgentOperatingCenter({
                 dir="rtl"
               >
                 <span className={cn("font-semibold", isEmergency ? "text-red-400" : "text-sky-400")}>
-                  {contextLog[streamIdx % contextLog.length].agent}{" "}
+                  {latestThought.role_ar}{" "}
                 </span>
-                <span className="text-muted-foreground/60">{contextLog[streamIdx % contextLog.length].action}</span>
+                <span className="text-muted-foreground/60">{truncateThought(latestThought.thought)}</span>
               </motion.div>
             ) : (
               <motion.div
-                key={logIdx}
+                key="idle"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
@@ -1240,8 +1212,7 @@ function AgentOperatingCenter({
                 className="text-[10px] leading-relaxed"
                 dir="rtl"
               >
-                <span className="font-semibold text-emerald-400">{contextLog[logIdx % contextLog.length].agent} </span>
-                <span className="text-muted-foreground/60">{contextLog[logIdx % contextLog.length].action}</span>
+                <span className="text-muted-foreground/50">بانتظار سؤال...</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -1615,6 +1586,7 @@ export function CopilotWorkspace() {
   const [streamingThoughts, setStreamingThoughts] = useState<AgentThought[]>([]);
   const [lastIntent, setLastIntent]         = useState<string | null>(null);
   const [lastToolUsed, setLastToolUsed]     = useState<string | null>(null);
+  const [lastVisualization, setLastVisualization] = useState<VisualizationData | null>(null);
   const [hydrated, setHydrated]             = useState(false);
   const [isEmergency, setIsEmergency]       = useState(false);
   const [isRecording, setIsRecording]       = useState(false);
@@ -1632,7 +1604,6 @@ export function CopilotWorkspace() {
   const [diseaseProvince, setDiseaseProvince]   = useState<string | null>(null);
   const [climateLayer, setClimateLayer]         = useState<"heat" | "humidity" | null>(null);
   const [proactiveAlert, setProactiveAlert]     = useState<string | null>(null);
-  const [lastMessage, setLastMessage]           = useState<string>("");
 
   // Context-awareness bridge — will be populated by حقولي / المحاصيل pages
   // Shape is intentionally typed via UserContext from api.ts
@@ -1804,11 +1775,11 @@ export function CopilotWorkspace() {
     setInput("");
     clearImage();
     setIsEmergency(false);
-    setLastMessage(msgText);
     setThinking(true);
     setStreamingThoughts([]);
     setLastIntent(null);
     setLastToolUsed(null);
+    setLastVisualization(null);
 
     try {
       const collectedThoughts: AgentThought[] = [];
@@ -1835,6 +1806,7 @@ export function CopilotWorkspace() {
 
       setLastIntent(doneMeta?.intent ?? null);
       setLastToolUsed(doneMeta?.tool_used ?? null);
+      setLastVisualization(doneMeta?.visualization ?? null);
 
       if (!sessionId.current && doneMeta?.session_id) {
         sessionId.current = doneMeta.session_id;
@@ -2127,10 +2099,10 @@ export function CopilotWorkspace() {
           highlightedProvince={highlightedProvince}
           diseaseProvince={diseaseProvince}
           climateLayer={climateLayer}
-          lastMessage={lastMessage}
           streamingThoughts={streamingThoughts}
           lastIntent={lastIntent}
           lastToolUsed={lastToolUsed}
+          lastVisualization={lastVisualization}
           onToggleClimate={(layer) => setClimateLayer((c) => c === layer ? null : layer)}
           onProvinceClick={(name) => {
             setHighlightedProvince(name);
