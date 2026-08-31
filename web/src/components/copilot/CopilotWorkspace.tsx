@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sendChatMessage, type AgentThought, type VisualizationData } from "@/lib/api";
-import { streamChat } from "@/lib/ai-service";
+import { streamChat, type StreamChatDoneMeta } from "@/lib/ai-service";
 import { VisualWorkspace } from "@/components/workspace/VisualWorkspace";
 import { AgroLogo } from "@/components/icons/AgroLogo";
 import {
@@ -960,6 +960,9 @@ function AgentOperatingCenter({
   diseaseProvince,
   climateLayer,
   lastMessage,
+  streamingThoughts,
+  lastIntent,
+  lastToolUsed,
   onToggleClimate,
   onProvinceClick,
 }: {
@@ -969,6 +972,9 @@ function AgentOperatingCenter({
   diseaseProvince: string | null;
   climateLayer: "heat" | "humidity" | null;
   lastMessage: string;
+  streamingThoughts: AgentThought[];
+  lastIntent: string | null;
+  lastToolUsed: string | null;
   onToggleClimate: (layer: "heat" | "humidity") => void;
   onProvinceClick: (name: string) => void;
 }) {
@@ -1607,6 +1613,8 @@ export function CopilotWorkspace() {
   const [input, setInput]                   = useState(searchParams.get("q") ?? "");
   const [thinking, setThinking]             = useState(false);
   const [streamingThoughts, setStreamingThoughts] = useState<AgentThought[]>([]);
+  const [lastIntent, setLastIntent]         = useState<string | null>(null);
+  const [lastToolUsed, setLastToolUsed]     = useState<string | null>(null);
   const [hydrated, setHydrated]             = useState(false);
   const [isEmergency, setIsEmergency]       = useState(false);
   const [isRecording, setIsRecording]       = useState(false);
@@ -1799,11 +1807,13 @@ export function CopilotWorkspace() {
     setLastMessage(msgText);
     setThinking(true);
     setStreamingThoughts([]);
+    setLastIntent(null);
+    setLastToolUsed(null);
 
     try {
       const collectedThoughts: AgentThought[] = [];
       let reply = "";
-      let doneMeta: { session_id: string; visualization?: VisualizationData | null } | undefined;
+      let doneMeta: StreamChatDoneMeta | undefined;
       let streamError: string | null = null;
 
       await new Promise<void>((resolve) => {
@@ -1822,6 +1832,9 @@ export function CopilotWorkspace() {
       });
 
       if (streamError) throw new Error(streamError);
+
+      setLastIntent(doneMeta?.intent ?? null);
+      setLastToolUsed(doneMeta?.tool_used ?? null);
 
       if (!sessionId.current && doneMeta?.session_id) {
         sessionId.current = doneMeta.session_id;
@@ -2115,6 +2128,9 @@ export function CopilotWorkspace() {
           diseaseProvince={diseaseProvince}
           climateLayer={climateLayer}
           lastMessage={lastMessage}
+          streamingThoughts={streamingThoughts}
+          lastIntent={lastIntent}
+          lastToolUsed={lastToolUsed}
           onToggleClimate={(layer) => setClimateLayer((c) => c === layer ? null : layer)}
           onProvinceClick={(name) => {
             setHighlightedProvince(name);
