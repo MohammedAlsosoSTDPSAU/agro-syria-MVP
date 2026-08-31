@@ -604,6 +604,20 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
     return tool_result, tool_summary
 
 
+# Minimum RAG similarity score to treat a chunk as real grounding rather than
+# noise. Calibrated empirically against the TF-IDF backend: clearly on-topic
+# queries ("أعراض صدأ القمح", "مبيد فطري لصدأ القمح") scored 0.38-0.46, while a
+# vague, off-topic follow-up ("45 يوم" alone) scored 0.34-0.39 — a bare number
+# that still surfaced the wheat-rust PDF as if it were relevant, which the
+# synthesizer then trusted enough to fabricate a diagnosis and fungicide names
+# from. The two score bands overlap (TF-IDF is not a clean relevance signal),
+# so this threshold deliberately sits above the confirmed-noise ceiling rather
+# than trying to also keep weaker legitimate matches: a missed real match only
+# costs a clarification question, while a false positive here is what causes
+# fabricated pesticide advice — asymmetric risk, not a symmetric tradeoff.
+_MIN_RAG_SCORE = 0.40
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Node: Research Agent  (Vision-RAG bridge + knowledge-base search)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -649,7 +663,16 @@ async def research_node(state: GraphState) -> dict[str, Any]:
         results.sort(key=lambda x: x["score"], reverse=True)
         log.info("وكيل البحث — applied location boost for region=%s", user_region)
 
-    results = results[:3]  # keep top-3 after re-ranking
+    # Drop anything that doesn't clear the relevance bar *before* slicing to
+    # top-3 — a weak/irrelevant match must never reach the synthesizer looking
+    # like a found result just because it was the "best of a bad bunch".
+    below_threshold = [r["score"] for r in results if r["score"] < _MIN_RAG_SCORE]
+    results = [r for r in results if r["score"] >= _MIN_RAG_SCORE][:3]
+    if below_threshold:
+        log.info(
+            "وكيل البحث — discarded %d chunk(s) below relevance threshold %.2f (scores=%s)",
+            len(below_threshold), _MIN_RAG_SCORE, below_threshold,
+        )
 
     # ── Build citation metadata ───────────────────────────────────────
     research_sources: list[ResearchSource] = []
@@ -679,8 +702,8 @@ async def research_node(state: GraphState) -> dict[str, Any]:
             status_msg = f"وجدت {len(results)} نتيجة في المكتبة الزراعية السورية."
     else:
         passages = ""
-        status_msg = "لم أجد معلومات مباشرة في المكتبة — سأعتمد على خبرتي الزراعية."
-        log.info("RAG returned no results")
+        status_msg = "لم أجد معلومات موثوقة بالمكتبة — رح أطلب توضيح بدل ما أخمّن."
+        log.info("RAG returned no results above relevance threshold")
 
     out = ResearchOutput(
         research_context=passages,

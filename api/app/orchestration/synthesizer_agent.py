@@ -48,7 +48,13 @@ _SYSTEM_PROMPT = (
     "أنت خبير زراعي سوري ذكي جداً، اسمك (أغرو-سيريا). "
     "تتحدث باللهجة السورية البيضاء (المريحة والقريبة للقلب). "
     "إذا حيّاك المستخدم، رد عليه بترحيب سوري دافئ دون الدخول في تفاصيل تقنية إلا إذا سأل. "
-    "إذا سأل عن الزراعة، استخدم خبرتك لتقديم نصائح دقيقة ومختصرة باللهجة السورية. "
+    "يمكنك ذكر مبادئ زراعية عامة بثقة (مواعيد الري، التباعد بين النباتات، "
+    "الصرف، التهوية، الدورة الزراعية) حتى لو لم تكن مذكورة حرفياً في المعطيات. "
+    "لكن يُمنع تماماً ذكر اسم مادة كيميائية أو مبيد فطري أو حشري أو منتج تجاري "
+    "محدد، أو أي جرعة رقمية، إلا إذا كان مذكوراً حرفياً في المعلومات المزوّدة لك "
+    "في هذه الرسالة. إذا احتجت اسم مبيد أو جرعة ولم تجدها في المعطيات، لا تخترعها "
+    "أبداً — قل بصراحة إنك غير متأكد من الاسم أو الجرعة المحددة وانصح المزارع "
+    "بمراجعة مرشد زراعي أو صيدلية زراعية محلية قبل الاستخدام. "
     "عند الاستشهاد بمصادر زراعية استخدم الصيغة: «حسب دليل [اسم الكتاب]...». "
     "دائماً اختم ردك بجملة تشجيعية قصيرة."
 )
@@ -202,15 +208,21 @@ def _build_visualization(
     if any(kw in vision_desc for kw in disease_keywords):
         return _disease_spread_map(crop, vision_desc, user_region)
 
-    # ── Map for disease keywords found anywhere in the query/research ──
-    all_text = raw_query + " " + research_context
-    if any(kw in all_text for kw in disease_keywords):
-        return _disease_spread_map(crop, all_text[:400], user_region)
+    # ── Map for disease keywords in the user's ACTUAL message ──────────
+    # Deliberately raw_query only — never research_context. A retrieved RAG
+    # chunk containing disease vocabulary is not evidence the user described
+    # a disease; it previously let an irrelevant-but-noisy match (e.g. the
+    # wheat-rust PDF surfacing for a bare "45 يوم") trigger an unprompted
+    # nationwide outbreak map. research_context may still flavor the map's
+    # hint text once the user's own words already justified showing one.
+    if any(kw in raw_query for kw in disease_keywords):
+        hint = raw_query + " " + research_context[:300]
+        return _disease_spread_map(crop, hint, user_region)
 
     # ── Map when user asks about a specific region + agricultural issue ─
     spatial_keywords = ["محافظة", "منطقة", "قرية", "أرض", "حقل", "بستان",
                         "مزرعة", "ينتشر", "وباء", "إصابة"]
-    if user_region and any(kw in (raw_query + research_context) for kw in spatial_keywords):
+    if user_region and any(kw in raw_query for kw in spatial_keywords):
         return _disease_spread_map(crop, research_context[:200], user_region)
 
     return None
@@ -272,6 +284,35 @@ def _local_synthesis(
 
     parts.append("\n🌱 وفقك الله في موسمك!")
     return "\n\n".join(parts)
+
+
+def _build_clarification_reply(query: str, intent: str, slots: dict[str, Any]) -> str:
+    """Deterministic, no-LLM clarification reply for when nothing was grounded.
+
+    Mirrors ``_build_slot_ask``'s tone/phrasing (app.core.graph) but for the
+    general case — no tool result, no relevant RAG match (post-threshold), no
+    vision. There is nothing solid to answer from, so ask what the farmer
+    actually means instead of inventing an answer. Deliberately NOT an LLM
+    call: this failure path must be 100% predictable and must never itself
+    hallucinate. (Not imported from app.core.graph — that would be a circular
+    import, since graph.py already imports this module.)
+    """
+    crop = slots.get("crop")
+    region = slots.get("region")
+    if crop and region:
+        return (
+            f"من عيوني، بس ما وصلتني معلومات موثوقة عن {crop} بمنطقة {region} "
+            "لهالسؤال بالتحديد. ممكن توضح أكتر شو بدك تعرف بالضبط (مرض، ري، تسميد، سعر)؟"
+        )
+    if crop:
+        return (
+            f"من عيوني، بس ما فهمت بالضبط شو بدك تعرف عن {crop}. "
+            "ممكن توضح أكتر (مثلاً: مرض، ري، تسميد، سعر، موعد زراعة)؟"
+        )
+    return (
+        "من عيوني، بس ما وصلتني تفاصيل كافية لأعطيك جواب دقيق ومضمون. "
+        "شو المحصول أو الموضوع اللي بدك تسأل عنه بالتحديد؟"
+    )
 
 
 def _call_llm_synthesize_sync(
@@ -421,7 +462,23 @@ class SynthesizerAgent:
         settings = get_settings()
         draft: SynthesizerDraft | None = None
 
-        if settings.llm_api_key and llm_available():
+        # No real grounding at all — no vision, no tool result, no RAG match
+        # that cleared the relevance threshold (app.core.graph._MIN_RAG_SCORE).
+        # Do NOT call the LLM in this case: with nothing to ground it, asking
+        # for "a complete answer" is exactly what produced fabricated fungicide
+        # names and dosages from a bare "45 يوم". Ask for clarification instead
+        # — deterministically, so this failure path can't itself hallucinate.
+        is_ungrounded = not (inp.vision_description or inp.tool_summary or inp.research_context)
+
+        if is_ungrounded:
+            log.info(
+                "المُجمِّع — لا يوجد تأصيل (vision/tool/research فارغة) — طلب توضيح بدل استدعاء LLM",
+            )
+            draft = SynthesizerDraft(
+                reply_ar=_build_clarification_reply(inp.raw_query, liaison.intent, liaison.slots),
+                citations=[],
+            )
+        elif settings.llm_api_key and llm_available():
             try:
                 loop = asyncio.get_event_loop()
                 # Generation runs in a thread executor so the blocking LLM
