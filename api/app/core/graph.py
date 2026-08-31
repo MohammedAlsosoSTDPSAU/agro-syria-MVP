@@ -42,7 +42,7 @@ from app.core.logging import get_logger
 from app.core.mock_intelligence import get_contextual_tips, get_mock_vision_description
 from app.core.rag_engine import search_knowledge_base
 from app.core.state import GraphState
-from app.orchestration import get_orchestrator, get_synthesizer_agent
+from app.orchestration import generate_domain_reply, get_orchestrator, get_synthesizer_agent
 from app.orchestration.schemas import (
     CalculatorInput,
     CalculatorOutput,
@@ -612,6 +612,165 @@ def _run_tool(intent: str, slots: dict[str, Any]) -> tuple[dict[str, Any] | None
         )
 
     return tool_result, tool_summary, tool_used
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Domain agents — irrigation / soil / market / calendar
+# ─────────────────────────────────────────────────────────────────────────────
+# Each calls _run_tool with its OWN fixed intent string — not liaison.intent —
+# because by the time routing reaches one of these nodes, the graph itself has
+# already decided which domain this turn is; reusing _run_tool exactly (rather
+# than re-implementing its branches here) guarantees the real numbers and
+# deterministic tool_summary text stay byte-identical to today's dispatcher.
+# The only new behavior is the LLM-phrased chain-of-thought text from
+# generate_domain_reply — tool_result/tool_summary/tool_used, which is what
+# the Synthesizer actually reads to compute the final reply, are untouched.
+#
+# Vision-description handling from the old field_agent_node is deliberately
+# NOT copied into these four nodes: under the new routing (Part 3), Vision
+# fans out to Research only, never to a domain node — an image turn's intent
+# stays "vision", which never matches any of these four, so none of them can
+# ever actually be reached with a vision_description present. Keeping that
+# dead branch here would misrepresent what these nodes can really do.
+
+async def irrigation_agent_node(state: GraphState) -> dict[str, Any]:
+    ctx = state.get("agricultural_context", {})
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    inp = CalculatorInput(intent="irrigation", raw_query=liaison.raw_query, slots=liaison.slots)
+
+    log.info("وكيل الري — slots=%s", inp.slots)
+
+    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
+        asyncio.to_thread(_run_tool, "irrigation", inp.slots),
+        asyncio.to_thread(_compute_tips, inp.raw_query),
+    )
+
+    settings = get_settings()
+    field_content = tool_summary or "جاري التحليل..."
+    if tool_summary:
+        field_content = await generate_domain_reply(
+            domain_ar="الري",
+            domain_flavor="ركّز على توقيت الري، كمية المياه، وجدول الجلسات الأسبوعي.",
+            tool_result=tool_result,
+            tool_summary=tool_summary,
+            raw_query=inp.raw_query,
+            settings=settings,
+        )
+
+    out = CalculatorOutput(
+        tool_result=tool_result, tool_summary=tool_summary,
+        contextual_tips=tips_text, tool_used=tool_used,
+    )
+    return {
+        "messages": [AIMessage(content=field_content, name="irrigation")],
+        "sender": "irrigation_agent",
+        "agricultural_context": {"calculator_output": out},
+    }
+
+
+async def soil_agent_node(state: GraphState) -> dict[str, Any]:
+    ctx = state.get("agricultural_context", {})
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    inp = CalculatorInput(intent="soil", raw_query=liaison.raw_query, slots=liaison.slots)
+
+    log.info("وكيل التربة — slots=%s", inp.slots)
+
+    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
+        asyncio.to_thread(_run_tool, "soil", inp.slots),
+        asyncio.to_thread(_compute_tips, inp.raw_query),
+    )
+
+    settings = get_settings()
+    field_content = tool_summary or "جاري التحليل..."
+    if tool_summary:
+        field_content = await generate_domain_reply(
+            domain_ar="التربة والتسميد",
+            domain_flavor="ركّز على حالة التربة وقيمة الـ pH وتوقيت التسميد المناسب.",
+            tool_result=tool_result,
+            tool_summary=tool_summary,
+            raw_query=inp.raw_query,
+            settings=settings,
+        )
+
+    out = CalculatorOutput(
+        tool_result=tool_result, tool_summary=tool_summary,
+        contextual_tips=tips_text, tool_used=tool_used,
+    )
+    return {
+        "messages": [AIMessage(content=field_content, name="soil")],
+        "sender": "soil_agent",
+        "agricultural_context": {"calculator_output": out},
+    }
+
+
+async def market_agent_node(state: GraphState) -> dict[str, Any]:
+    ctx = state.get("agricultural_context", {})
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    inp = CalculatorInput(intent="market", raw_query=liaison.raw_query, slots=liaison.slots)
+
+    log.info("وكيل السوق — slots=%s", inp.slots)
+
+    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
+        asyncio.to_thread(_run_tool, "market", inp.slots),
+        asyncio.to_thread(_compute_tips, inp.raw_query),
+    )
+
+    settings = get_settings()
+    field_content = tool_summary or "جاري التحليل..."
+    if tool_summary:
+        field_content = await generate_domain_reply(
+            domain_ar="أسعار السوق",
+            domain_flavor="ركّز على اتجاه السعر وأفضل وقت للبيع ونصيحة تسويقية عملية.",
+            tool_result=tool_result,
+            tool_summary=tool_summary,
+            raw_query=inp.raw_query,
+            settings=settings,
+        )
+
+    out = CalculatorOutput(
+        tool_result=tool_result, tool_summary=tool_summary,
+        contextual_tips=tips_text, tool_used=tool_used,
+    )
+    return {
+        "messages": [AIMessage(content=field_content, name="market")],
+        "sender": "market_agent",
+        "agricultural_context": {"calculator_output": out},
+    }
+
+
+async def calendar_agent_node(state: GraphState) -> dict[str, Any]:
+    ctx = state.get("agricultural_context", {})
+    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
+    inp = CalculatorInput(intent="calendar", raw_query=liaison.raw_query, slots=liaison.slots)
+
+    log.info("وكيل التقويم الزراعي — slots=%s", inp.slots)
+
+    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
+        asyncio.to_thread(_run_tool, "calendar", inp.slots),
+        asyncio.to_thread(_compute_tips, inp.raw_query),
+    )
+
+    settings = get_settings()
+    field_content = tool_summary or "جاري التحليل..."
+    if tool_summary:
+        field_content = await generate_domain_reply(
+            domain_ar="التقويم الزراعي",
+            domain_flavor="ركّز على مواعيد الزراعة والحصاد المناسبة للمنطقة والارتفاع.",
+            tool_result=tool_result,
+            tool_summary=tool_summary,
+            raw_query=inp.raw_query,
+            settings=settings,
+        )
+
+    out = CalculatorOutput(
+        tool_result=tool_result, tool_summary=tool_summary,
+        contextual_tips=tips_text, tool_used=tool_used,
+    )
+    return {
+        "messages": [AIMessage(content=field_content, name="calendar")],
+        "sender": "calendar_agent",
+        "agricultural_context": {"calculator_output": out},
+    }
 
 
 # Minimum RAG similarity score to treat a chunk as real grounding rather than

@@ -29,6 +29,10 @@ _AGENT_META: dict[str, dict] = {
     "liaison":    {"role_ar": "وكيل التواصل",          "is_status": False},
     "vision":     {"role_ar": "خبير المعاينة البصرية", "is_status": False},
     "field":      {"role_ar": "عميل الحقل",             "is_status": True},
+    "irrigation": {"role_ar": "وكيل الري",              "is_status": True},
+    "soil":       {"role_ar": "وكيل التربة والتسميد",  "is_status": True},
+    "market":     {"role_ar": "وكيل أسعار السوق",       "is_status": True},
+    "calendar":   {"role_ar": "وكيل التقويم الزراعي",   "is_status": True},
     "research":   {"role_ar": "وكيل البحث العلمي",      "is_status": True},
     "synthesizer":{"role_ar": "المُجمِّع الاستراتيجي",  "is_status": False},
 }
