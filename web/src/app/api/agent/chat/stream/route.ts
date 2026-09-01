@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { callGroq, type ChatRequest } from "../route";
+import { DEGRADED_REPLY_AR, degradedServiceThought, type ChatRequest } from "../route";
 
 // ── SSE proxy for the FastAPI streaming pipeline ─────────────────────────
 // Relays FastAPI's /api/agent/chat/stream byte-for-byte to the browser — no
 // buffering, no re-parsing here, just piping the ReadableStream through.
 //
 // If the initial connection to FastAPI fails (network error, or a non-2xx
-// status before any bytes arrive), falls back to the existing callGroq(...)
-// from the sibling route and synthesizes an equivalent two-event SSE stream
-// (one "thought" using the same hardcoded synthesizer placeholder already
-// used today, then one "final" with the Groq reply) — so the frontend
-// consumer never needs to know which backend actually served the request.
+// status before any bytes arrive), synthesizes an honest two-event SSE
+// stream instead of calling a second, unconstrained LLM (see the sibling
+// route's comment for why the old Groq fallback was removed entirely) — the
+// frontend consumer never needs to know which case it is, since the event
+// shape matches the real backend's exactly.
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
@@ -22,41 +22,20 @@ function sseLine(payload: Record<string, unknown>): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
-function groqFallbackStream(body: ChatRequest): ReadableStream<Uint8Array> {
+function degradedServiceStream(body: ChatRequest): ReadableStream<Uint8Array> {
   return new ReadableStream({
-    async start(controller) {
+    start(controller) {
       const enc = new TextEncoder();
-      try {
-        const groqReply = await callGroq(body);
-        if (!groqReply) {
-          controller.enqueue(enc.encode(sseLine({
-            type: "error",
-            message: "عذراً، تعذّر تجهيز الرد حالياً. يرجى المحاولة مرة أخرى بعد قليل.",
-          })));
-          controller.close();
-          return;
-        }
-
-        const thought = groqReply.chain_of_thought[0];
-        if (thought) {
-          controller.enqueue(enc.encode(sseLine({ type: "thought", ...thought })));
-        }
-
-        controller.enqueue(enc.encode(sseLine({
-          type: "final",
-          reply: groqReply.reply,
-          visualization: groqReply.visualization ?? null,
-          session_id: groqReply.session_id,
-        })));
-        controller.close();
-      } catch (err) {
-        console.error("[chat/stream] groq fallback threw:", err);
-        controller.enqueue(enc.encode(sseLine({
-          type: "error",
-          message: "عذراً، تعذّر تجهيز الرد حالياً. يرجى المحاولة مرة أخرى بعد قليل.",
-        })));
-        controller.close();
-      }
+      controller.enqueue(enc.encode(sseLine({ type: "thought", ...degradedServiceThought() })));
+      controller.enqueue(enc.encode(sseLine({
+        type: "final",
+        reply: DEGRADED_REPLY_AR,
+        visualization: null,
+        session_id: body.session_id ?? crypto.randomUUID(),
+        intent: null,
+        tool_used: null,
+      })));
+      controller.close();
     },
   });
 }
@@ -96,5 +75,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return new Response(groqFallbackStream(body), { headers: SSE_HEADERS });
+  return new Response(degradedServiceStream(body), { headers: SSE_HEADERS });
 }
