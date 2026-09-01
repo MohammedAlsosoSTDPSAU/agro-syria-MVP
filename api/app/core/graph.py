@@ -1,20 +1,29 @@
-"""Agro-Syria LangGraph orchestration — Phase 4.4 (parallel data stage).
+"""Agro-Syria LangGraph orchestration — Phase 4.4 (parallel data stage) +
+Prompt 4 (independent domain agents).
 
-Flow (no image) — Calculator ∥ Research run concurrently, then fan in:
-  START -> Liaison -> [route] ┬-> Agricultural Calculator ┐
-                              └-> Research Agent ──────────┴-> Strategic Synthesizer -> END
-                     -> (greeting / slot-ask) -------------------------------------------> END
+Flow (no image) — the ONE domain agent matching this turn's intent (if any)
+∥ Research run concurrently, then fan in:
+  START -> Liaison -> [route] ┬-> {Irrigation | Soil | Market | Calendar} ┐
+                              └-> Research Agent ──────────────────────────┴-> Strategic Synthesizer -> END
+                     -> (greeting / slot-ask) ------------------------------------------------------> END
+                     -> (general intent, no domain match) -> Research alone ------------------------> Strategic Synthesizer -> END
 
-Flow (with image):
-  START -> Liaison -> Vision ┬-> Agricultural Calculator ┐
-                            └-> Research Agent ──────────┴-> Strategic Synthesizer -> END
+Flow (with image) — Vision fans out to Research only (an image turn's intent
+is always "vision", which never matches a domain agent):
+  START -> Liaison -> Vision -> Research Agent -> Strategic Synthesizer -> END
 
 Performance design:
-  - Calculator (tools) and Research (RAG) have NO mutual dependency, so they are
-    a LangGraph fan-out that executes in parallel and fans in to the Synthesizer.
+  - Each domain agent (tools) and Research (RAG) have NO mutual dependency, so
+    they are a LangGraph fan-out that executes in parallel and fans in to the
+    Synthesizer.
   - Blocking work (RAG search, tool calls, tips) is offloaded via asyncio.to_thread
-    (and asyncio.gather inside the Calculator) so the parallel branches truly
+    (and asyncio.gather inside each domain agent) so the parallel branches truly
     overlap instead of pinning the event loop.
+  - Each domain agent's real math comes from its deterministic tool function
+    (_run_tool, unchanged) — the only new cost is one LLM call per domain agent
+    (app/orchestration/domain_agent.py) that phrases the already-computed
+    numbers into a recommendation. It never invents a number itself and falls
+    back to the deterministic tool_summary unchanged on any LLM failure.
   - The Synthesizer is isolated as a generation-only SynthesizerAgent
     (app/orchestration/synthesizer_agent.py) — forbidden from tools / RAG / fetch.
 
@@ -473,51 +482,8 @@ async def _call_vision_llm(image_b64: str, query: str, settings: Any) -> VisionO
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Node: Agricultural Calculator  (tool invocation + keyword tips)
+# Shared helpers for the domain agent nodes below (tool invocation + tips)
 # ─────────────────────────────────────────────────────────────────────────────
-async def field_agent_node(state: GraphState) -> dict[str, Any]:
-    ctx = state.get("agricultural_context", {})
-    liaison = coerce(LiaisonOutput, ctx["liaison_output"])
-    vision = ctx.get("vision_output")
-    vision_description = coerce(VisionOutput, vision).description_ar if vision else ""
-
-    # Rigorous input validation for the calculator contract.
-    inp = CalculatorInput(
-        intent=liaison.intent,
-        raw_query=liaison.raw_query,
-        slots=liaison.slots,
-        vision_description=vision_description,
-    )
-
-    log.info("عميل الحقل — intent=%s has_vision=%s", inp.intent, bool(vision_description))
-
-    # The tool computation and the contextual-tips lookup are independent, so
-    # run them concurrently — each offloaded to a worker thread so this node
-    # never blocks the event loop while it runs in parallel with the Research
-    # node (LangGraph fan-out).
-    combined_query = f"{inp.raw_query} {vision_description}".strip()
-    (tool_result, tool_summary, tool_used), tips_text = await asyncio.gather(
-        asyncio.to_thread(_run_tool, inp.intent, inp.slots),
-        asyncio.to_thread(_compute_tips, combined_query),
-    )
-
-    field_content = tool_summary or (
-        f"👁 **وصف بصري مستلم**\n{vision_description}" if vision_description else "جاري التحليل..."
-    )
-
-    out = CalculatorOutput(
-        tool_result=tool_result,
-        tool_summary=tool_summary,
-        contextual_tips=tips_text,
-        tool_used=tool_used,
-    )
-    return {
-        "messages": [AIMessage(content=field_content, name="field")],
-        "sender": "field_agent",
-        "agricultural_context": {"calculator_output": out},
-    }
-
-
 def _compute_tips(combined_query: str) -> str:
     """Keyword-based contextual tips (blocking → offloaded to a thread)."""
     tips = get_contextual_tips(combined_query)
@@ -895,13 +861,18 @@ def get_compiled_graph():
 
     # Node implementations, keyed by the orchestrator's canonical node ids so
     # the registry and the routing table can never drift apart. The Synthesizer
-    # is the decoupled, generation-only SynthesizerAgent (no tools / RAG).
+    # is the decoupled, generation-only SynthesizerAgent (no tools / RAG). The
+    # four domain agents replace the old single "Agricultural Calculator"
+    # dispatcher — Liaison's intent now picks exactly one of them (or none).
     node_impls = {
-        "Liaison Agent":           liaison_node,
-        "Vision Agent":            vision_node,
-        "Agricultural Calculator": field_agent_node,
-        "Research Agent":          research_node,
-        "Strategic Synthesizer":   synthesizer_agent.node,
+        "Liaison Agent":    liaison_node,
+        "Vision Agent":     vision_node,
+        "Irrigation Agent": irrigation_agent_node,
+        "Soil Agent":       soil_agent_node,
+        "Market Agent":     market_agent_node,
+        "Calendar Agent":   calendar_agent_node,
+        "Research Agent":   research_node,
+        "Strategic Synthesizer": synthesizer_agent.node,
     }
 
     # Wrap every node in the orchestrator's schema guard: its output is
@@ -914,16 +885,25 @@ def get_compiled_graph():
     vision = "Vision Agent"
 
     # START -> Liaison. The only runtime decision is after Liaison: stop (END),
-    # go to Vision first (image), or fan out to the parallel data stage.
+    # go to Vision first (image), or fan out — Research always, plus whichever
+    # domain agent (if any) matches this turn's intent — computed dynamically
+    # in orchestrator.route(), since it's no longer a single fixed pair.
     builder.add_edge(START, liaison)
     builder.add_conditional_edges(liaison, orchestrator.route, orchestrator.path_map(liaison))
 
-    # Vision fans out to the parallel data stage; the two independent data nodes
-    # (Calculator = tools, Research = RAG) run concurrently, then fan in to the
-    # generation-only Synthesizer (the join). All static — no runtime decision.
+    # Vision -> Research only (VISION_TARGETS): an image turn's intent is
+    # always "vision", which never matches a domain agent, so there is nothing
+    # for one to do on that path — wiring an edge to all four would just mean
+    # four guaranteed no-ops on every image upload.
+    for data_node in orchestrator.VISION_TARGETS:
+        builder.add_edge(vision, data_node)
+
+    # PARALLEL_STAGE (all four domain agents + Research) fan in to the
+    # generation-only Synthesizer (the join). Static — whichever of these
+    # nodes actually ran this turn feeds Synthesizer; the others were simply
+    # never scheduled, so the join doesn't wait on them.
     for data_node in orchestrator.PARALLEL_STAGE:
-        builder.add_edge(vision, data_node)            # image flow: Vision -> {Calc, Research}
-        builder.add_edge(data_node, orchestrator.JOIN)  # fan-in -> Synthesizer
+        builder.add_edge(data_node, orchestrator.JOIN)
     builder.add_edge(orchestrator.JOIN, END)
 
     compiled = builder.compile()

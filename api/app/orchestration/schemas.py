@@ -194,10 +194,19 @@ class SynthesizerOutput(AgentIO):
 # Registries — single source of truth for the governance layer
 # ─────────────────────────────────────────────────────────────────────────────
 # Canonical ``agricultural_context`` key each node writes its output under.
+# The four domain agents (replacing the old single "Agricultural Calculator"
+# dispatcher) all share CalculatorOutput/CalculatorInput and write to the same
+# "calculator_output" context key — only one of the four ever runs per turn
+# (mutual exclusivity is enforced by routing now, not by an if/elif inside one
+# node), so there is no write conflict, and the Synthesizer's node() method
+# needs no changes: it still just reads ctx.get("calculator_output").
 OUTPUT_KEYS: dict[str, str] = {
     "Liaison Agent": "liaison_output",
     "Vision Agent": "vision_output",
-    "Agricultural Calculator": "calculator_output",
+    "Irrigation Agent": "calculator_output",
+    "Soil Agent": "calculator_output",
+    "Market Agent": "calculator_output",
+    "Calendar Agent": "calculator_output",
     "Research Agent": "research_output",
     "Strategic Synthesizer": "synthesizer_output",
 }
@@ -205,7 +214,10 @@ OUTPUT_KEYS: dict[str, str] = {
 OUTPUT_SCHEMAS: dict[str, type[AgentIO]] = {
     "Liaison Agent": LiaisonOutput,
     "Vision Agent": VisionOutput,
-    "Agricultural Calculator": CalculatorOutput,
+    "Irrigation Agent": CalculatorOutput,
+    "Soil Agent": CalculatorOutput,
+    "Market Agent": CalculatorOutput,
+    "Calendar Agent": CalculatorOutput,
     "Research Agent": ResearchOutput,
     "Strategic Synthesizer": SynthesizerOutput,
 }
@@ -213,7 +225,10 @@ OUTPUT_SCHEMAS: dict[str, type[AgentIO]] = {
 INPUT_SCHEMAS: dict[str, type[AgentIO]] = {
     "Liaison Agent": LiaisonInput,
     "Vision Agent": VisionInput,
-    "Agricultural Calculator": CalculatorInput,
+    "Irrigation Agent": CalculatorInput,
+    "Soil Agent": CalculatorInput,
+    "Market Agent": CalculatorInput,
+    "Calendar Agent": CalculatorInput,
     "Research Agent": ResearchInput,
     "Strategic Synthesizer": SynthesizerInput,
 }
@@ -250,7 +265,7 @@ def safe_fallback(node_id: str) -> AgentIO:
             description_ar="تعذّر تحليل الصورة بدقة في هذه اللحظة.",
             severity="none",
         )
-    if node_id == "Agricultural Calculator":
+    if node_id in ("Irrigation Agent", "Soil Agent", "Market Agent", "Calendar Agent"):
         return CalculatorOutput()
     if node_id == "Research Agent":
         return ResearchOutput()

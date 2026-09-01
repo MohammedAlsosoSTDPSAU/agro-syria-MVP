@@ -56,9 +56,22 @@ NodeFn = Callable[["GraphState"], Awaitable[dict[str, Any]]]
 # LangGraph ``StateGraph`` so the orchestrator and the builder never drift.
 LIAISON = "Liaison Agent"
 VISION = "Vision Agent"
-CALCULATOR = "Agricultural Calculator"
+IRRIGATION = "Irrigation Agent"
+SOIL = "Soil Agent"
+MARKET = "Market Agent"
+CALENDAR = "Calendar Agent"
 RESEARCH = "Research Agent"
 SYNTHESIZER = "Strategic Synthesizer"
+
+# Liaison's detected intent -> the one domain agent that matches it. "general"
+# and "vision" (and anything else unmatched) intentionally have no entry —
+# those turns fan out to Research alone, no domain agent at all.
+INTENT_NODE_MAP: dict[str, str] = {
+    "irrigation": IRRIGATION,
+    "soil": SOIL,
+    "market": MARKET,
+    "calendar": CALENDAR,
+}
 
 
 class AgentOrchestrator:
@@ -74,15 +87,26 @@ class AgentOrchestrator:
     PIPELINE: tuple[str, ...] = (
         LIAISON,
         VISION,
-        CALCULATOR,
+        IRRIGATION,
+        SOIL,
+        MARKET,
+        CALENDAR,
         RESEARCH,
         SYNTHESIZER,
     )
 
-    # The two data nodes have NO mutual dependency — Calculator runs tools,
-    # Research runs RAG — so they execute concurrently (a parallel fan-out),
-    # then fan in to the generation-only JOIN node.
-    PARALLEL_STAGE: tuple[str, ...] = (CALCULATOR, RESEARCH)
+    # Every node that can fan in to JOIN. At most one of the four domain
+    # agents plus Research actually run in any given turn (never all five) —
+    # this tuple is the superset of possible JOIN predecessors, used both for
+    # path_map validation and for wiring each one's static edge to JOIN.
+    PARALLEL_STAGE: tuple[str, ...] = (IRRIGATION, SOIL, MARKET, CALENDAR, RESEARCH)
+
+    # What an image turn (Vision Agent) statically fans out to. Vision-flow
+    # intent is always "vision", which never matches INTENT_NODE_MAP, so a
+    # domain agent has never had anything to do on the image path — Research
+    # alone reflects that rather than wiring (and always no-op-ing) all four.
+    VISION_TARGETS: tuple[str, ...] = (RESEARCH,)
+
     JOIN: str = SYNTHESIZER
 
     # ── Transition table (the one real branch point: after Liaison) ──────
@@ -93,17 +117,20 @@ class AgentOrchestrator:
     #   greeting        -> stop (warm reply already emitted)
     #   missing_slots   -> stop (slot-fill question already emitted)
     #   image_b64       -> Vision Agent (visual analysis first, then fan-out)
-    #   (default)       -> [Calculator, Research] in parallel
+    #   (default)       -> [<matching domain agent>?, Research] in parallel —
+    #                      computed dynamically from intent in route(), since
+    #                      this is no longer a single fixed destination pair
+    #                      (see route() below).
     #
     # Every transition *after* Liaison is deterministic and static (Vision
-    # fans out to PARALLEL_STAGE; PARALLEL_STAGE fans in to JOIN; JOIN -> END),
+    # fans out to VISION_TARGETS; PARALLEL_STAGE fans in to JOIN; JOIN -> END),
     # so it needs no runtime decision and is wired directly in the graph builder.
     HANDOFF_RULES: dict[str, tuple[tuple[str | None, str | list[str]], ...]] = {
         LIAISON: (
             ("greeting", END),
             ("missing_slots", END),
             ("image_b64", VISION),
-            (None, list(PARALLEL_STAGE)),
+            (None, list(PARALLEL_STAGE)),  # superset for path_map(); route() computes the real subset
         ),
     }
 
@@ -113,7 +140,10 @@ class AgentOrchestrator:
     REQUIRED_CONTEXT: dict[str, tuple[str, ...]] = {
         LIAISON: ("liaison_output",),
         VISION: ("vision_output",),
-        CALCULATOR: ("calculator_output",),
+        IRRIGATION: ("calculator_output",),
+        SOIL: ("calculator_output",),
+        MARKET: ("calculator_output",),
+        CALENDAR: ("calculator_output",),
         RESEARCH: ("research_output",),
         SYNTHESIZER: ("synthesizer_output",),
     }
@@ -124,7 +154,10 @@ class AgentOrchestrator:
         "user": LIAISON,  # pre-pipeline seed; START -> Liaison is a static edge
         "liaison": LIAISON,
         "vision_agent": VISION,
-        "field_agent": CALCULATOR,
+        "irrigation_agent": IRRIGATION,
+        "soil_agent": SOIL,
+        "market_agent": MARKET,
+        "calendar_agent": CALENDAR,
         "research_agent": RESEARCH,
         "synthesizer": SYNTHESIZER,
     }
@@ -133,7 +166,10 @@ class AgentOrchestrator:
     _NODE_TO_SENDER: dict[str, str] = {
         LIAISON: "liaison",
         VISION: "vision_agent",
-        CALCULATOR: "field_agent",
+        IRRIGATION: "irrigation_agent",
+        SOIL: "soil_agent",
+        MARKET: "market_agent",
+        CALENDAR: "calendar_agent",
         RESEARCH: "research_agent",
         SYNTHESIZER: "synthesizer",
     }
@@ -146,11 +182,22 @@ class AgentOrchestrator:
         (:meth:`flags`) and walks :data:`HANDOFF_RULES` for whichever node last
         executed. A ``list`` return value fans out to multiple nodes that then
         run concurrently. No LLM call is involved.
+
+        The ``None`` (default) rule is special-cased rather than returning its
+        table value literally: the actual destination now depends on intent
+        (which one of the four domain agents, if any, matches this turn),
+        which a static flag/destination table can't express. Research always
+        runs; a domain agent joins it only when intent has a match.
         """
         node = self._current_node(state)
         flags = self.flags(state)
         for flag, destination in self.HANDOFF_RULES[node]:
-            if flag is None or flags.get(flag, False):
+            if flag is None:
+                if node == LIAISON:
+                    domain_node = INTENT_NODE_MAP.get(self._intent(state))
+                    return [domain_node, RESEARCH] if domain_node else [RESEARCH]
+                return destination
+            if flags.get(flag, False):
                 return destination
         # Defensive: every rule tuple terminates with a ``None`` default, so
         # this is unreachable unless HANDOFF_RULES is misconfigured.
@@ -205,6 +252,12 @@ class AgentOrchestrator:
             ),
             "missing_slots": bool(liaison.get("missing_slots") or ctx.get("slot_ask")),
         }
+
+    def _intent(self, state: "GraphState") -> str:
+        """The Liaison-detected intent, for the default-case domain-agent lookup."""
+        ctx = self._context(state)
+        liaison = self._as_dict(ctx.get("liaison_output"))
+        return liaison.get("intent", "general")
 
     # ── Schema governance: output validation + retry/fallback ────────────
     def validate_output(self, node_id: str, payload: Any) -> AgentIO:

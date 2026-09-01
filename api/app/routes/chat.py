@@ -28,7 +28,6 @@ log = get_logger("agro_syria.routes.chat")
 _AGENT_META: dict[str, dict] = {
     "liaison":    {"role_ar": "وكيل التواصل",          "is_status": False},
     "vision":     {"role_ar": "خبير المعاينة البصرية", "is_status": False},
-    "field":      {"role_ar": "عميل الحقل",             "is_status": True},
     "irrigation": {"role_ar": "وكيل الري",              "is_status": True},
     "soil":       {"role_ar": "وكيل التربة والتسميد",  "is_status": True},
     "market":     {"role_ar": "وكيل أسعار السوق",       "is_status": True},

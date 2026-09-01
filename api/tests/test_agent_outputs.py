@@ -26,9 +26,12 @@ from app.core.graph import (
 )
 from app.orchestration import get_orchestrator
 from app.orchestration.agent_orchestrator import (
-    CALCULATOR,
+    CALENDAR,
+    IRRIGATION,
     LIAISON,
+    MARKET,
     RESEARCH,
+    SOIL,
     SYNTHESIZER,
     VISION,
 )
@@ -126,17 +129,34 @@ class TestOrchestratorRouter:
         self.o = get_orchestrator()
 
     def test_parallel_stage_membership(self) -> None:
-        assert self.o.PARALLEL_STAGE == (CALCULATOR, RESEARCH)
-        assert CALCULATOR in self.o.PARALLEL_STAGE
-        assert RESEARCH in self.o.PARALLEL_STAGE
+        assert self.o.PARALLEL_STAGE == (IRRIGATION, SOIL, MARKET, CALENDAR, RESEARCH)
+        for node in (IRRIGATION, SOIL, MARKET, CALENDAR, RESEARCH):
+            assert node in self.o.PARALLEL_STAGE
         assert self.o.JOIN == SYNTHESIZER
 
-    def test_default_route_fans_out_to_parallel_stage(self) -> None:
-        lo = LiaisonOutput(raw_query="كيف أروي القمح", intent="irrigation")
+    @pytest.mark.parametrize(
+        "intent,domain_node",
+        [
+            ("irrigation", IRRIGATION),
+            ("soil", SOIL),
+            ("market", MARKET),
+            ("calendar", CALENDAR),
+        ],
+    )
+    def test_default_route_fans_out_to_matching_domain_agent(self, intent: str, domain_node: str) -> None:
+        """Only the ONE domain agent matching this turn's intent fans out with
+        Research — not the full PARALLEL_STAGE superset (that's just the
+        declared path_map, not what any single run actually returns)."""
+        lo = LiaisonOutput(raw_query="سؤال", intent=intent)
         dest = self.o.route(_state("liaison", liaison_output=lo))
         assert isinstance(dest, list)
-        assert set(dest) == {CALCULATOR, RESEARCH}
-        assert set(dest) == set(self.o.PARALLEL_STAGE)
+        assert set(dest) == {domain_node, RESEARCH}
+
+    def test_general_intent_routes_to_research_only(self) -> None:
+        """No domain agent matches 'general' — Research alone feeds the join."""
+        lo = LiaisonOutput(raw_query="كيفك اليوم", intent="general")
+        dest = self.o.route(_state("liaison", liaison_output=lo))
+        assert dest == [RESEARCH]
 
     def test_image_routes_to_vision_first(self) -> None:
         lo = LiaisonOutput(raw_query="شو بالصورة", intent="vision", has_image=True)
@@ -153,7 +173,7 @@ class TestOrchestratorRouter:
 
     def test_path_map_covers_all_liaison_targets(self) -> None:
         pm = self.o.path_map(LIAISON)
-        assert set(pm) == {END, VISION, CALCULATOR, RESEARCH}
+        assert set(pm) == {END, VISION, IRRIGATION, SOIL, MARKET, CALENDAR, RESEARCH}
 
     def test_route_unknown_sender_raises(self) -> None:
         with pytest.raises(ValueError):
@@ -271,10 +291,13 @@ class TestEndToEndIntegrity:
         assert "synthesizer_output" not in ctx
 
     async def test_image_flow_runs_vision_then_parallel_join(self, graph) -> None:
+        """Vision fans out to Research only (VISION_TARGETS) — an image turn's
+        intent is always "vision", which never matches a domain agent, so
+        calculator_output is correctly absent, not just unused."""
         final = await graph.ainvoke(_seed("شو في بالصورة؟", image_base64="ZmFrZQ=="))
         ctx = final["agricultural_context"]
-        for key in ("liaison_output", "vision_output",
-                    "calculator_output", "research_output", "synthesizer_output"):
+        for key in ("liaison_output", "vision_output", "research_output", "synthesizer_output"):
             assert key in ctx, f"missing {key} in image flow"
+        assert "calculator_output" not in ctx
         reply, _ = _resolve_output(ctx)
         assert reply.strip()
